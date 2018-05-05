@@ -114,7 +114,7 @@ UniValue generateBlocks(std::shared_ptr<CReserveScript> coinbaseScript, int nGen
         nHeight = chainActive.Height();
         nHeightEnd = nHeight+nGenerate;
     }
-    unsigned int nExtraNonce = 666; //Added dummy value for debugging
+    unsigned int nExtraNonce = 0; //Added dummy value for debugging
     UniValue blockHashes(UniValue::VARR);
     //mining loop removed start
     std::unique_ptr<CBlockTemplate> pblocktemplate(BlockAssembler(Params()).CreateNewBlock(coinbaseScript->reserveScript));
@@ -123,8 +123,9 @@ UniValue generateBlocks(std::shared_ptr<CReserveScript> coinbaseScript, int nGen
     CBlock *pblock = &pblocktemplate->block;
     {
         LOCK(cs_main);
-        // IncrementExtraNonce(pblock, chainActive.Tip(), nExtraNonce);
+        IncrementExtraNonce(pblock, chainActive.Tip(), nExtraNonce);
     }
+
     /*
     while (nMaxTries > 0 && pblock->nNonce < nInnerLoopCount && !CheckProofOfWork(pblock->GetHash(), pblock->nBits, Params().GetConsensus())) {
         ++pblock->nNonce;
