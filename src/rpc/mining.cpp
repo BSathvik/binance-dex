@@ -105,53 +105,50 @@ UniValue getnetworkhashps(const JSONRPCRequest& request)
 
 UniValue generateBlocks(std::shared_ptr<CReserveScript> coinbaseScript, int nGenerate, uint64_t nMaxTries, bool keepScript)
 {
-    static const int nInnerLoopCount = 0x10000;
-    int nHeightEnd = 0;
-    int nHeight = 0;
+  static const int nInnerLoopCount = 0x10000;
+      int nHeightEnd = 0;
+      int nHeight = 0;
 
-    {   // Don't keep cs_main locked
-        LOCK(cs_main);
-        nHeight = chainActive.Height();
-        nHeightEnd = nHeight+nGenerate;
-    }
-    unsigned int nExtraNonce = 0; //Added dummy value for debugging
-    UniValue blockHashes(UniValue::VARR);
-    //mining loop removed start
-    std::unique_ptr<CBlockTemplate> pblocktemplate(BlockAssembler(Params()).CreateNewBlock(coinbaseScript->reserveScript));
-    if (!pblocktemplate.get())
-        throw JSONRPCError(RPC_INTERNAL_ERROR, "Couldn't create new block");
-    CBlock *pblock = &pblocktemplate->block;
-    {
-        LOCK(cs_main);
-        IncrementExtraNonce(pblock, chainActive.Tip(), nExtraNonce);
-    }
+      {   // Don't keep cs_main locked
+          LOCK(cs_main);
+          nHeight = chainActive.Height();
+          nHeightEnd = nHeight+nGenerate;
+      }
+      unsigned int nExtraNonce = 0;
+      UniValue blockHashes(UniValue::VARR);
+      while (nHeight < nHeightEnd && !ShutdownRequested())
+      {
+          std::unique_ptr<CBlockTemplate> pblocktemplate(BlockAssembler(Params()).CreateNewBlock(coinbaseScript->reserveScript));
+          if (!pblocktemplate.get())
+              throw JSONRPCError(RPC_INTERNAL_ERROR, "Couldn't create new block");
+          CBlock *pblock = &pblocktemplate->block;
+          {
+              LOCK(cs_main);
+              IncrementExtraNonce(pblock, chainActive.Tip(), nExtraNonce);
+          }
+          while (nMaxTries > 0 && pblock->nNonce < nInnerLoopCount && !CheckProofOfWork(pblock->GetHash(), pblock->nBits, Params().GetConsensus())) {
+              ++pblock->nNonce;
+              --nMaxTries;
+          }
+          if (nMaxTries == 0) {
+              break;
+          }
+          if (pblock->nNonce == nInnerLoopCount) {
+              continue;
+          }
+          std::shared_ptr<const CBlock> shared_pblock = std::make_shared<const CBlock>(*pblock);
+          if (!ProcessNewBlock(Params(), shared_pblock, true, nullptr))
+              throw JSONRPCError(RPC_INTERNAL_ERROR, "ProcessNewBlock, block not accepted");
+          ++nHeight;
+          blockHashes.push_back(pblock->GetHash().GetHex());
 
-    /*
-    while (nMaxTries > 0 && pblock->nNonce < nInnerLoopCount && !CheckProofOfWork(pblock->GetHash(), pblock->nBits, Params().GetConsensus())) {
-        ++pblock->nNonce;
-        --nMaxTries;
-    }
-    if (nMaxTries == 0) {
-        break;
-    }
-    if (pblock->nNonce == nInnerLoopCount) {
-        continue;
-    }
-    */
-    std::shared_ptr<const CBlock> shared_pblock = std::make_shared<const CBlock>(*pblock);
-    if (!ProcessNewBlock(Params(), shared_pblock, true, nullptr))
-        throw JSONRPCError(RPC_INTERNAL_ERROR, "ProcessNewBlock, block not accepted");
-    ++nHeight;
-    blockHashes.push_back(pblock->GetHash().GetHex());
-
-    //mark script as important because it was used at least for one coinbase output if the script came from the wallet
-    if (keepScript)
-    {
-        coinbaseScript->KeepScript();
-    }
-    //mining loop removed end
-
-    return blockHashes;
+          //mark script as important because it was used at least for one coinbase output if the script came from the wallet
+          if (keepScript)
+          {
+              coinbaseScript->KeepScript();
+          }
+      }
+      return blockHashes;
 }
 
 UniValue generatetoaddress(const JSONRPCRequest& request)
