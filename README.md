@@ -1,3 +1,18 @@
+Binance Dex
+=====================================
+
+Running a node using Docker
+----------------
+The Dockerfile builds an image with all the dependencies installed on Ubuntu 16.04 LTS.
+Note: The Image doesn't have the binance-dex repo, you'll have to git clone it. Also, don't use `sudo` in the container.
+
+1. Install Docker
+2. Build the image by running `docker build -t binance-dex:first .`
+3. To run image. `docker run -it -v <volume_name>:/home/ binance-dex:first`
+4. Now, `git clone "https://github.com/BSathvik/binance-dex"`
+5. Compile the repo
+
+
 Bitcoin Core integration/staging tree
 =====================================
 
