@@ -174,6 +174,32 @@ public:
     std::string ToString() const;
 };
 
+struct CTransactionAttributes
+{
+    uint32_t type = 6968;
+    //CTransactionAttributes(uint32_t &Txtype);
+    CTransactionAttributes();
+    
+    ADD_SERIALIZE_METHODS;
+    
+    template <typename Stream, typename Operation>
+    inline void SerializationOp(Stream& s, Operation ser_action) {
+        READWRITE(type);
+    }
+    
+    friend bool operator==(const CTransactionAttributes& a, const CTransactionAttributes& b)
+    {
+        return (a.type == b.type);
+    }
+
+    friend bool operator!=(const CTransactionAttributes& a, const CTransactionAttributes& b)
+    {
+        return !(a == b);
+    }
+    
+    std::string ToString() const;
+};
+
 struct CMutableTransaction;
 
 /**
@@ -198,6 +224,9 @@ inline void UnserializeTransaction(TxType& tx, Stream& s) {
     const bool fAllowWitness = !(s.GetVersion() & SERIALIZE_TRANSACTION_NO_WITNESS);
 
     s >> tx.nVersion;
+    s >> tx.type;
+    s >> tx.attr;
+    
     unsigned char flags = 0;
     tx.vin.clear();
     tx.vout.clear();
@@ -233,6 +262,8 @@ inline void SerializeTransaction(const TxType& tx, Stream& s) {
     const bool fAllowWitness = !(s.GetVersion() & SERIALIZE_TRANSACTION_NO_WITNESS);
 
     s << tx.nVersion;
+    s << tx.type;
+    s << tx.attr;
     unsigned char flags = 0;
     // Consistency check
     if (fAllowWitness) {
@@ -282,6 +313,8 @@ public:
     const std::vector<CTxOut> vout;
     const int32_t nVersion;
     const uint32_t nLockTime;
+    const uint32_t type = 6969;
+    CTransactionAttributes attr;
 
 private:
     /** Memory only. */
@@ -365,7 +398,9 @@ struct CMutableTransaction
     std::vector<CTxOut> vout;
     int32_t nVersion;
     uint32_t nLockTime;
-
+    uint32_t type = 6969;
+    CTransactionAttributes attr;
+    
     CMutableTransaction();
     CMutableTransaction(const CTransaction& tx);
 
