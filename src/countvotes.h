@@ -5,6 +5,6 @@
 #include <wallet/wallet.h>
 #include <chain.h>
 
-CTransaction* countedVotes(const CTransaction voteTx, CBlockHeader* pblock);
+CAmount countedVotes(const CTransaction &voteTx, CBlockHeader &pblock);
 
 #endif // COUNTVOTES_H

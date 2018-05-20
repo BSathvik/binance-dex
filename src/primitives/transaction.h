@@ -176,6 +176,7 @@ public:
 
 struct CTransactionAttributes
 {
+public:
     uint32_t type = 6968;
     //CTransactionAttributes(uint32_t &Txtype);
     CTransactionAttributes();
@@ -199,6 +200,7 @@ struct CTransactionAttributes
     
     std::string ToString() const;
 };
+
 
 struct CMutableTransaction;
 
@@ -303,7 +305,9 @@ public:
     // bumping the default CURRENT_VERSION at which point both CURRENT_VERSION and
     // MAX_STANDARD_VERSION will be equal.
     static const int32_t MAX_STANDARD_VERSION=2;
-
+    
+    static const int32_t TYPE_DEFAULT = 0x1;
+    static const int32_t TYPE_VOTE = 0x45;
     // The local variables are made const to prevent unintended modification
     // without updating the cached hash value. However, CTransaction is not
     // actually immutable; deserialization and assignment are implemented,
@@ -313,8 +317,8 @@ public:
     const std::vector<CTxOut> vout;
     const int32_t nVersion;
     const uint32_t nLockTime;
-    const uint32_t type = 6969;
-    CTransactionAttributes attr;
+    const uint32_t type;
+    const CTransactionAttributes attr;
 
 private:
     /** Memory only. */
@@ -398,7 +402,7 @@ struct CMutableTransaction
     std::vector<CTxOut> vout;
     int32_t nVersion;
     uint32_t nLockTime;
-    uint32_t type = 6969;
+    uint32_t type;
     CTransactionAttributes attr;
     
     CMutableTransaction();
