@@ -1,12 +1,14 @@
 #include <countvotes.h>
 #include <consensus/tx_verify.h>
+#include <consensus/consensus.h>
 #include <amount.h>
 #include <coins.h>
 #include <timedata.h>
+#include <validation.h>
 
 
 static const int64_t MAINTENANCE_INTERVAL_BLOCK_TIME = 24 * 60 * 60;
-static const uint64_t MAINTENANCE_INTERVAL_BLOCK_HEIGHT = 12 * 60 * 60; // Assuming a block is produced every 2 seconds.
+static const int64_t MAINTENANCE_INTERVAL_BLOCK_HEIGHT = 12 * 60 * 60; // Assuming a block is produced every 2 seconds.
 
 
 bool isVoteTransaction(const CTransaction &tx){
@@ -15,26 +17,25 @@ bool isVoteTransaction(const CTransaction &tx){
     return false;
 }
 
-//You need context of the main chain to check if it in the maintenance interval, 
-//the main active chain is in validation.cpp, lets just say we have it for now.
-bool inMaintenanceInterval(CBlockHeader &block){
-    int64_t nAdjustedTime = GetAdjustedTime();
-    //TODO: Actually implement this
-    return true;
-    //if (block.GetBlockTime() >  + MAX_FUTURE_BLOCK_TIME)
+bool inCurrentMaintenanceInterval(CBlockIndex *blockIndex, CChain &chainActive){
+    
+    //TODO: Check for block timestamps on top of block height.
+    //int64_t nAdjustedTime = GetAdjustedTime();
+    
+    int64_t lastMaintenanceHeight = chainActive.Height() - chainActive.Height() % MAINTENANCE_INTERVAL_BLOCK_HEIGHT;
+    
+    if (blockIndex->nHeight >= lastMaintenanceHeight)
+        return true;
+    
+    return false;
 }
 
-// i guess I need to make sure that votetx is a voting transaction and that its nLockTime
-// is before the maintenance interval stuff
-CAmount GetTransactionVoteAmount(const CTransaction &voteTx, CBlockHeader &block) {
-    
-    if (!(isVoteTransaction(voteTx) && inMaintenanceInterval(block)))
-        return 0 * COIN;
-    
-    //TODO: nLockTime checks. we need context to know when the next maintenance interval is.
-    
+CAmount GetTransactionVoteAmount(const CTransaction &voteTx, CBlockIndex *blockIndex, CChain &chainActive) {
+    //CheckSequenceLocks checks nLockTime
+    if (!(isVoteTransaction(voteTx) && inCurrentMaintenanceInterval(blockIndex, chainActive) && CheckSequenceLocks(voteTx, LOCKTIME_MEDIAN_TIME_PAST)))
+        return 12 * COIN; // It's an arbitrary number, so I know when one of the tests above fails.
+
     //TODO: Consensus::CheckTxInputs. Need context to call this. consensus/tx_verify.cpp
-    
     CAmount totalVoteCount = 0;
     for (const auto& txout : voteTx.vout)
     {
