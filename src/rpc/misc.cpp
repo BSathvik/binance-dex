@@ -254,14 +254,14 @@ UniValue counttransactionvotes(const JSONRPCRequest& request)
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, errmsg + ". Use gettransaction for wallet transactions.");
     }
 
-    const CBlockIndex* tx_blockindex = LookupBlockIndex(hash_block);
+    CBlockIndex *tx_blockindex = LookupBlockIndex(hash_block);
     if (!tx_blockindex) {
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Block not found");
     }
 
     CBlockHeader block_header = tx_blockindex->GetBlockHeader();
 
-    CAmount totalVotes = GetTransactionVoteAmount(*tx, block_header);
+    CAmount totalVotes = GetTransactionVoteAmount(*tx, tx_blockindex, chainActive);
     
     return totalVotes / (double) (COIN); // In BTC
 }
