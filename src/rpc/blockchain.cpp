@@ -677,7 +677,7 @@ UniValue getblockhash(const JSONRPCRequest& request)
     CBlockIndex* pblockindex = chainActive[nHeight];
     return pblockindex->GetBlockHash().GetHex();
 }
-
+// IMP getblockheader
 UniValue getblockheader(const JSONRPCRequest& request)
 {
     if (request.fHelp || request.params.size() < 1 || request.params.size() > 2)

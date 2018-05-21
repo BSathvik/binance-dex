@@ -36,7 +36,6 @@ CAmount GetTransactionVoteAmount(const CTransaction &voteTx, CBlockHeader &block
     //TODO: Consensus::CheckTxInputs. Need context to call this. consensus/tx_verify.cpp
     
     CAmount totalVoteCount = 0;
-        
     for (const auto& txout : voteTx.vout)
     {
         //TODO: Check if the vout is meant for this node/wallet.
