@@ -99,6 +99,7 @@ BITCOIN_CORE_H = \
   consensus/tx_verify.h \
   core_io.h \
   core_memusage.h \
+  countvotes.h \
   cuckoocache.h \
   fs.h \
   httprpc.h \
@@ -182,8 +183,7 @@ BITCOIN_CORE_H = \
   zmq/zmqabstractnotifier.h \
   zmq/zmqconfig.h\
   zmq/zmqnotificationinterface.h \
-  zmq/zmqpublishnotifier.h \
-  countvotes.h
+  zmq/zmqpublishnotifier.h
 
 obj/build.h: FORCE
 	@$(MKDIR_P) $(builddir)/obj
@@ -202,6 +202,7 @@ libbitcoin_server_a_SOURCES = \
   chain.cpp \
   checkpoints.cpp \
   consensus/tx_verify.cpp \
+  countvotes.cpp \
   httprpc.cpp \
   httpserver.cpp \
   index/txindex.cpp \
