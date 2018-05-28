@@ -7,6 +7,6 @@
 #include <amount.h>
 #include <coins.h>
 
-CAmount GetTransactionVoteAmount(const CTransaction &voteTx, CBlockIndex *blockIndex, CChain &chainActive);
+CAmount GetTransactionVoteAmount(const CTransaction &voteTx, CBlockIndex *blockIndex, CChain &chainActive, const CWallet *pwallet);
 
 #endif // COUNTVOTES_H

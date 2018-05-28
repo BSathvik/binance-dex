@@ -31,7 +31,7 @@ bool inCurrentMaintenanceInterval(CBlockIndex *blockIndex, CChain &chainActive){
     return false;
 }
 
-CAmount GetTransactionVoteAmount(const CTransaction &voteTx, CBlockIndex *blockIndex, CChain &chainActive) {
+CAmount GetTransactionVoteAmount(const CTransaction &voteTx, CBlockIndex *blockIndex, CChain &chainActive, const CWallet *pwallet) {
 
     if (!(blockIndex && chainActive.Contains(blockIndex) && chainActive.Height() - blockIndex->nHeight >= 0))
         return error("%s: Invalid CBlockIndex", __func__);
@@ -39,12 +39,12 @@ CAmount GetTransactionVoteAmount(const CTransaction &voteTx, CBlockIndex *blockI
     if (!(isVoteTransaction(voteTx) && inCurrentMaintenanceInterval(blockIndex, chainActive)))
         return 0 * COIN;
 
-    //TODO: Consensus::CheckTxInputs. Need context to call this. consensus/tx_verify.cpp
     CAmount totalVoteCount = 0;
     for (const auto& txout : voteTx.vout)
     {
-        //TODO: Check if the vout is meant for this node/wallet.
-        totalVoteCount += txout.nValue;
+        //Check if the vout is meant for this node/wallet.
+        if(pwallet->IsMine(txout))
+            totalVoteCount += txout.nValue;
     }
     return totalVoteCount;
 }
