@@ -261,7 +261,10 @@ UniValue counttransactionvotes(const JSONRPCRequest& request)
 
     CBlockHeader block_header = tx_blockindex->GetBlockHeader();
 
-    CAmount totalVotes = GetTransactionVoteAmount(*tx, tx_blockindex, chainActive);
+    // get wallet for this request
+    CWallet* const pwallet = GetWalletForJSONRPCRequest(request);
+
+    CAmount totalVotes = GetTransactionVoteAmount(*tx, tx_blockindex, chainActive, pwallet);
     
     return totalVotes / (double) (COIN); // In BTC
 }
