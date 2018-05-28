@@ -5,6 +5,7 @@
 #include <coins.h>
 #include <timedata.h>
 #include <validation.h>
+#include <util.h>
 
 
 static const int64_t MAINTENANCE_INTERVAL_BLOCK_TIME = 24 * 60 * 60;
@@ -31,9 +32,12 @@ bool inCurrentMaintenanceInterval(CBlockIndex *blockIndex, CChain &chainActive){
 }
 
 CAmount GetTransactionVoteAmount(const CTransaction &voteTx, CBlockIndex *blockIndex, CChain &chainActive) {
-    //CheckSequenceLocks checks nLockTime
-    if (!(isVoteTransaction(voteTx) && inCurrentMaintenanceInterval(blockIndex, chainActive) && CheckSequenceLocks(voteTx, LOCKTIME_MEDIAN_TIME_PAST)))
-        return 12 * COIN; // It's an arbitrary number, so I know when one of the tests above fails.
+
+    if (!(blockIndex && chainActive.Contains(blockIndex) && chainActive.Height() - blockIndex->nHeight >= 0))
+        return error("%s: Invalid CBlockIndex", __func__);
+    
+    if (!(isVoteTransaction(voteTx) && inCurrentMaintenanceInterval(blockIndex, chainActive)))
+        return 0 * COIN;
 
     //TODO: Consensus::CheckTxInputs. Need context to call this. consensus/tx_verify.cpp
     CAmount totalVoteCount = 0;
