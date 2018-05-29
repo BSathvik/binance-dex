@@ -13,19 +13,18 @@ static const int64_t MAINTENANCE_INTERVAL_BLOCK_HEIGHT = 12 * 60 * 60; // Assumi
 
 
 bool isVoteTransaction(const CTransaction &tx){
-    if (tx.type == CTransaction::TYPE_VOTE)
-        return true;
-    return false;
+    return (tx.type == CTransaction::TYPE_VOTE);
 }
 
 bool inCurrentMaintenanceInterval(CBlockIndex *blockIndex, CChain &chainActive){
     
-    //TODO: Check for block timestamps on top of block height.
+    //Check for block timestamps on top of block height.
     //int64_t nAdjustedTime = GetAdjustedTime();
-    
+    int64_t lastMaintenanceTime = chainActive.Tip()->GetBlockTime() - chainActive.Tip()->GetBlockTime() % MAINTENANCE_INTERVAL_BLOCK_TIME;
+
     int64_t lastMaintenanceHeight = chainActive.Height() - chainActive.Height() % MAINTENANCE_INTERVAL_BLOCK_HEIGHT;
     
-    if (blockIndex->nHeight >= lastMaintenanceHeight)
+    if (blockIndex->nHeight >= lastMaintenanceHeight && blockIndex->GetBlockTimeMax() >= lastMaintenanceTime)
         return true;
     
     return false;
