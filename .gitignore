@@ -52,6 +52,7 @@ src/qt/bitcoin-qt.includes
 
 .idea/
 .project/
+.project
 
 .deps
 .dirstamp
