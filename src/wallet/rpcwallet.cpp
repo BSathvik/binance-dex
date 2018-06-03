@@ -487,6 +487,67 @@ static CTransactionRef SendMoney(CWallet * const pwallet, const CTxDestination &
     return tx;
 }
 
+UniValue enrollaswitness(const JSONRPCRequest& request)
+{    
+    
+    CWallet* const pwallet = GetWalletForJSONRPCRequest(request);
+    if (!EnsureWalletIsAvailable(pwallet, request.fHelp)) {
+        return NullUniValue;
+    }
+
+    if(request.fHelp || request.params.size() != 1)
+    throw std::runtime_error(
+        "enrollaswitness\n"
+        "\nEnroll this address so it can be voted to become a witness node\n"
+        "\nArguments:\n"
+        "1. \"amount\"             (numeric or string, required) The amount in " + CURRENCY_UNIT + " to send. eg 0.1\n"
+        "\nResult:\n"
+        "x             (string) The txid of the enrollment transaction, which includes the new enrolled address.\n"
+        "\nExamples:\n"
+        + HelpExampleCli("enrollaswitness", "address")
+    );
+    
+    pwallet->BlockUntilSyncedToCurrentChain();
+
+    LOCK2(cs_main, pwallet->cs_wallet);
+
+    EnsureWalletIsUnlocked(pwallet);
+
+    if (!pwallet->IsLocked()) {
+        pwallet->TopUpKeyPool();
+    }
+
+    // Generate a new key that is added to wallet
+    CPubKey newKey;
+    if (!pwallet->GetKeyFromPool(newKey)) {
+        throw JSONRPCError(RPC_WALLET_KEYPOOL_RAN_OUT, "Error: Keypool ran out, please call keypoolrefill first");
+    }
+
+    pwallet->LearnRelatedScripts(newKey, OutputType::P2SH_SEGWIT);
+    CTxDestination dest = GetDestinationForKey(newKey, OutputType::P2SH_SEGWIT);
+
+    pwallet->SetAddressBook(dest, "Witness Address", "receive");
+
+    // Check if address is invalid
+    if (!IsValidDestination(dest)) {
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Something is wrong: Invalid address after enrollment transaction");
+    }
+
+    // Amount
+    CAmount nAmount = AmountFromValue(request.params[0]);
+    if (nAmount <= 0)
+      throw JSONRPCError(RPC_TYPE_ERROR, "Invalid amount for send");
+
+    CCoinControl coin_control;
+    mapValue_t mapValue;
+
+    bool fSubtractFeeFromAmount = false;
+
+    CTransactionRef tx = SendMoney(pwallet, dest, nAmount, fSubtractFeeFromAmount, coin_control, std::move(mapValue), {} /* fromAccount */);
+    return tx->GetHash().GetHex();
+
+}
+
 UniValue sendtoaddress(const JSONRPCRequest& request)
 {
     CWallet * const pwallet = GetWalletForJSONRPCRequest(request);
@@ -4152,6 +4213,7 @@ static const CRPCCommand commands[] =
     { "wallet",             "setlabel",                         &setlabel,                      {"address","label"} },
 
     { "generating",         "generate",                         &generate,                      {"nblocks","maxtries"} },
+    { "wallet",             "enrollaswitness",                  &enrollaswitness,                 {} },
 };
 
 void RegisterWalletRPCCommands(CRPCTable &t)

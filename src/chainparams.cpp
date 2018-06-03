@@ -84,7 +84,7 @@ public:
         consensus.powLimit = uint256S("00000000ffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
         consensus.nPowTargetTimespan = 14 * 24 * 60 * 60; // two weeks
         consensus.nPowTargetSpacing = 10 * 60;
-        consensus.fPowAllowMinDifficultyBlocks = false;
+        consensus.fPowAllowMinDifficultyBlocks = true;
         consensus.fPowNoRetargeting = false;
         consensus.nRuleChangeActivationThreshold = 1916; // 95% of 2016
         consensus.nMinerConfirmationWindow = 2016; // nPowTargetTimespan / nPowTargetSpacing
@@ -108,6 +108,10 @@ public:
         // By default assume that the signatures in ancestors of this block are valid.
         consensus.defaultAssumeValid = uint256S("0x0000000000000000005214481d2d96f898e3d5416e43359c145944a909d242e0"); //506067
 
+
+        //Number of witnesses allowed on the network
+        consensus.nWitnesses = 2;
+
         /**
          * The message start string is designed to be unlikely to occur in normal data.
          * The characters are rarely used upper ASCII, not valid as UTF-8, and produce
@@ -119,7 +123,7 @@ public:
         pchMessageStart[3] = 0xd4;
         nDefaultPort = 4333;
         nPruneAfterHeight = 100000;
-
+        
         genesis = CreateGenesisBlock(1231006505, 2083236893, 0x1d00ffff, 1, 0 * COIN);
         consensus.hashGenesisBlock = genesis.GetHash();
         //assert(consensus.hashGenesisBlock == uint256S("0x000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f")); TODO: Change

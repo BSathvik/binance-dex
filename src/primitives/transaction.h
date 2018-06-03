@@ -308,6 +308,7 @@ public:
     
     static const int32_t TYPE_DEFAULT = 0x1;
     static const int32_t TYPE_VOTE = 0x45;
+    static const int32_t TYPE_ENROLL = 0x65;
     // The local variables are made const to prevent unintended modification
     // without updating the cached hash value. However, CTransaction is not
     // actually immutable; deserialization and assignment are implemented,
