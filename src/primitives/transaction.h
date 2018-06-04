@@ -14,6 +14,8 @@
 
 static const int SERIALIZE_TRANSACTION_NO_WITNESS = 0x40000000;
 
+typedef uint32_t CTransactionType;
+
 /** An outpoint - a combination of a transaction hash and an index n into its vout */
 class COutPoint
 {
@@ -202,6 +204,14 @@ public:
 };
 
 
+struct CTransactionTypes{
+    
+    static const CTransactionType VALUE = 0x1;
+    static const CTransactionType VOTE = 0x45;
+    static const CTransactionType ENROLL = 0x65;
+        
+};
+
 struct CMutableTransaction;
 
 /**
@@ -305,10 +315,6 @@ public:
     // bumping the default CURRENT_VERSION at which point both CURRENT_VERSION and
     // MAX_STANDARD_VERSION will be equal.
     static const int32_t MAX_STANDARD_VERSION=2;
-    
-    static const int32_t TYPE_DEFAULT = 0x1;
-    static const int32_t TYPE_VOTE = 0x45;
-    static const int32_t TYPE_ENROLL = 0x65;
     // The local variables are made const to prevent unintended modification
     // without updating the cached hash value. However, CTransaction is not
     // actually immutable; deserialization and assignment are implemented,
@@ -318,7 +324,7 @@ public:
     const std::vector<CTxOut> vout;
     const int32_t nVersion;
     const uint32_t nLockTime;
-    const uint32_t type;
+    const CTransactionType type;
     const CTransactionAttributes attr;
 
 private:
@@ -403,7 +409,7 @@ struct CMutableTransaction
     std::vector<CTxOut> vout;
     int32_t nVersion;
     uint32_t nLockTime;
-    uint32_t type;
+    CTransactionType type;
     CTransactionAttributes attr;
     
     CMutableTransaction();

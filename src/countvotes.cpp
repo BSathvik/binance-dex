@@ -13,7 +13,7 @@ static const int64_t MAINTENANCE_INTERVAL_BLOCK_HEIGHT = 12 * 60 * 60; // Assumi
 
 
 bool isVoteTransaction(const CTransaction &tx){
-    return (tx.type == CTransaction::TYPE_VOTE);
+    return (tx.type == CTransactionTypes::VOTE);
 }
 
 bool inCurrentMaintenanceInterval(CBlockIndex *blockIndex, CChain &chainActive){
