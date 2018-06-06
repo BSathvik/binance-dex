@@ -52,7 +52,7 @@ CAmount GetDustThreshold(const CTxOut& txout, const CFeeRate& dustRelayFeeIn)
 
 bool IsDust(const CTxOut& txout, const CFeeRate& dustRelayFeeIn, CTransactionType type)
 {
-    if (type == CTransactionTypes::VOTE)
+    if (type == CTransactionTypes::VOTE || type == CTransactionTypes::ENROLL)
         return false;
     return (txout.nValue < GetDustThreshold(txout, dustRelayFeeIn));
 }

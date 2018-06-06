@@ -520,6 +520,39 @@ static CTransactionRef SendVote(CWallet * const pwallet, const CTxDestination &a
     return tx;
 }
 
+static CTransactionRef EnrollAsWitness(CWallet * const pwallet, const CTxDestination &address, const CCoinControl& coin_control, mapValue_t mapValue, std::string fromAccount)
+{
+    CAmount curBalance = pwallet->GetBalance();
+
+    if (pwallet->GetBroadcastTransactions() && !g_connman) {
+        throw JSONRPCError(RPC_CLIENT_P2P_DISABLED, "Error: Peer-to-peer functionality missing or disabled");
+    }
+
+    // Parse Bitcoin address
+    CScript scriptPubKey = GetScriptForDestination(address);
+
+    // Create and send the transaction
+    CReserveKey reservekey(pwallet);
+    CAmount nFeeRequired;
+    std::string strError;
+    std::vector<CRecipient> vecSend;
+    int nChangePosRet = -1;
+    CRecipient recipient = {scriptPubKey, 0, false};
+    vecSend.push_back(recipient);
+    CTransactionRef tx;
+    if (!pwallet->CreateTransaction(vecSend, tx, reservekey, nFeeRequired, nChangePosRet, strError, coin_control, CTransactionTypes::ENROLL)) {
+        if (nFeeRequired > curBalance)
+            strError = strprintf("Error: This transaction requires a transaction fee of at least %s", FormatMoney(nFeeRequired));
+        throw JSONRPCError(RPC_WALLET_ERROR, strError);
+    }
+    CValidationState state;
+    if (!pwallet->CommitTransaction(tx, std::move(mapValue), {} /* orderForm */, std::move(fromAccount), reservekey, g_connman.get(), state)) {
+        strError = strprintf("Error: The transaction was rejected! Reason given: %s", FormatStateMessage(state));
+        throw JSONRPCError(RPC_WALLET_ERROR, strError);
+    }
+    return tx;
+}
+
 UniValue enrollaswitness(const JSONRPCRequest& request)
 {    
     
@@ -533,7 +566,7 @@ UniValue enrollaswitness(const JSONRPCRequest& request)
         "enrollaswitness\n"
         "\nEnroll this address so it can be voted to become a witness node\n"
         "\nArguments:\n"
-        "1. \"amount\"             (numeric or string, required) The amount in " + CURRENCY_UNIT + " to send. eg 0.1\n"
+        "1. \"address\"         (string, required) The bitcoin address in your wallet that you want to enroll.\n"
         "\nResult:\n"
         "x             (string) The txid of the enrollment transaction, which includes the new enrolled address.\n"
         "\nExamples:\n"
@@ -550,33 +583,16 @@ UniValue enrollaswitness(const JSONRPCRequest& request)
         pwallet->TopUpKeyPool();
     }
 
-    // Generate a new key that is added to wallet
-    CPubKey newKey;
-    if (!pwallet->GetKeyFromPool(newKey)) {
-        throw JSONRPCError(RPC_WALLET_KEYPOOL_RAN_OUT, "Error: Keypool ran out, please call keypoolrefill first");
-    }
-
-    pwallet->LearnRelatedScripts(newKey, OutputType::P2SH_SEGWIT);
-    CTxDestination dest = GetDestinationForKey(newKey, OutputType::P2SH_SEGWIT);
-
-    pwallet->SetAddressBook(dest, "Witness Address", "receive");
-
-    // Check if address is invalid
+    CTxDestination dest = DecodeDestination(request.params[0].get_str());
     if (!IsValidDestination(dest)) {
-        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Something is wrong: Invalid address after enrollment transaction");
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid address");
     }
-
-    // Amount
-    CAmount nAmount = AmountFromValue(request.params[0]);
-    if (nAmount <= 0)
-      throw JSONRPCError(RPC_TYPE_ERROR, "Invalid amount for send");
+    std::string strAccount = LabelFromValue(request.params[0]);
 
     CCoinControl coin_control;
     mapValue_t mapValue;
 
-    bool fSubtractFeeFromAmount = false;
-
-    CTransactionRef tx = SendMoney(pwallet, dest, nAmount, fSubtractFeeFromAmount, coin_control, std::move(mapValue), {} /* fromAccount */);
+    CTransactionRef tx = EnrollAsWitness(pwallet, dest, coin_control, std::move(mapValue), std::move(strAccount));
     return tx->GetHash().GetHex();
 
 }
