@@ -13,6 +13,7 @@
 #include <util.h>
 #include <ui_interface.h>
 #include <init.h>
+#include <validation.h>
 
 #include <stdint.h>
 
@@ -30,6 +31,20 @@ static const char DB_HEAD_BLOCKS = 'H';
 static const char DB_FLAG = 'F';
 static const char DB_REINDEX_FLAG = 'R';
 static const char DB_LAST_BLOCK = 'l';
+
+/* DB_VOTE_COUNT: Entry in LevelDB prefixed by 'v'
+ * key: an address
+ * value: number of votes
+ */
+
+static const char DB_VOTE_COUNT = 'v';
+
+/* DB_ADDR_CANDIDATES: Entry in LevelDB prefixed by 'V'
+ * key: a voting address
+ * value: a list of candidates (addresses) this account has voted for
+ */
+
+static const char DB_ADDR_CANDIDATES = 'V';
 
 namespace {
 
@@ -149,6 +164,20 @@ size_t CCoinsViewDB::EstimateSize() const
 }
 
 CBlockTreeDB::CBlockTreeDB(size_t nCacheSize, bool fMemory, bool fWipe) : CDBWrapper(gArgs.IsArgSet("-blocksdir") ? GetDataDir() / "blocks" / "index" : GetBlocksDir() / "index", nCacheSize, fMemory, fWipe) {
+}
+
+bool CBlockTreeDB::WriteVoteCount(const CBlock* block) {
+   
+  //if first block, annoying, causing problems so need TODO
+  if(true) {
+    for (std::vector<CTransactionRef>::const_iterator i(block->vtx.begin()); i != block->vtx.end(); i++) {
+      //TODO: look at the diff from the database and the added info, use that to 
+      // calculate votes (look at diff enroll, diff address votes and num voting for)
+      //TODO: look at diagram, finish this method
+      // make a batch of things to write, look at examples in this file.
+    }
+  }
+  return true;
 }
 
 bool CBlockTreeDB::ReadBlockFileInfo(int nFile, CBlockFileInfo &info) {
