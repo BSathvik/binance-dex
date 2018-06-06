@@ -124,6 +124,7 @@ public:
     bool ReadFlag(const std::string &name, bool &fValue);
     bool LoadBlockIndexGuts(const Consensus::Params& consensusParams, std::function<CBlockIndex*(const uint256&)> insertBlockIndex);
     bool WriteVoteCount(const CBlock* block);
+    bool ReadVoteCount(const std::string addr, int &nVotes);
 
 };
 

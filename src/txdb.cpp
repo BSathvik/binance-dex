@@ -4,6 +4,7 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include <txdb.h>
+#include <core_io.h>
 
 #include <chainparams.h>
 #include <hash.h>
@@ -14,7 +15,7 @@
 #include <ui_interface.h>
 #include <init.h>
 #include <validation.h>
-
+#include <univalue.h>
 #include <stdint.h>
 
 #include <boost/thread.hpp>
@@ -166,18 +167,34 @@ size_t CCoinsViewDB::EstimateSize() const
 CBlockTreeDB::CBlockTreeDB(size_t nCacheSize, bool fMemory, bool fWipe) : CDBWrapper(gArgs.IsArgSet("-blocksdir") ? GetDataDir() / "blocks" / "index" : GetBlocksDir() / "index", nCacheSize, fMemory, fWipe) {
 }
 
+bool CCoinsViewDB::ReadVoteCount(const std::string addr, int& nVotes) { return true; } //TODO: finish this read method
+
+// TODO: Implement diff-wise vote counting at some point.
 bool CBlockTreeDB::WriteVoteCount(const CBlock* block) {
-   
-  //if first block, annoying, causing problems so need TODO
-  if(true) {
-    for (std::vector<CTransactionRef>::const_iterator i(block->vtx.begin()); i != block->vtx.end(); i++) {
-      //TODO: look at the diff from the database and the added info, use that to 
-      // calculate votes (look at diff enroll, diff address votes and num voting for)
+  CDBBatch batch(*this); 
+
+  if(CBlockIndex(block->GetBlockHeader()).nHeight == 0) {
+    for (std::vector< CTransactionRef >::const_iterator it = (block->vtx).begin(); it != (block->vtx).end(); ++it) {
+      
       //TODO: look at diagram, finish this method
       // make a batch of things to write, look at examples in this file.
     }
+  } else {
+    for (std::vector< CTransactionRef >::const_iterator it = (block->vtx).begin(); it != (block->vtx).end(); ++it) {
+      std::shared_ptr<const CTransaction> currTransaction = *it;
+      if(currTransaction->type == CTransactionTypes::ENROLL) {
+        int nVotes;
+        
+        UniValue entry(UniValue::VOBJ);
+        TxToUniv(**it, (block->GetBlockHeader()).GetHash(), entry);
+        *this->ReadVoteCount(find_value(find_value(entry, "striptSig"), "asm").getValStr(), nVotes);
+        if(nVotes%2!=0) {
+          batch.Write(std::make_pair(DB_VOTE_COUNT, find_value(find_value(entry, "scriptSig"), "asm").getValStr()), 0); 
+        }
+      }
+    }
   }
-  return true;
+  return WriteBatch(batch);
 }
 
 bool CBlockTreeDB::ReadBlockFileInfo(int nFile, CBlockFileInfo &info) {
