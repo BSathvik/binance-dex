@@ -167,8 +167,7 @@ size_t CCoinsViewDB::EstimateSize() const
 CBlockTreeDB::CBlockTreeDB(size_t nCacheSize, bool fMemory, bool fWipe) : CDBWrapper(gArgs.IsArgSet("-blocksdir") ? GetDataDir() / "blocks" / "index" : GetBlocksDir() / "index", nCacheSize, fMemory, fWipe) {
 }
 
-// This declaration isn't working
-bool CCoinsViewDB::ReadVoteCount(const std::string addr, int& nVotes) { return true; } //TODO: finish this read method
+bool CBlockTreeDB::ReadVoteCount(const std::string addr, int& nVotes) { return true; } //TODO: finish this read method
 
 // TODO: Implement diff-wise vote counting at some point.
 bool CBlockTreeDB::WriteVoteCount(const CBlock* block) {
@@ -188,7 +187,7 @@ bool CBlockTreeDB::WriteVoteCount(const CBlock* block) {
         
         UniValue entry(UniValue::VOBJ);
         TxToUniv(**it, (block->GetBlockHeader()).GetHash(), entry);
-        *this->ReadVoteCount(find_value(find_value(entry, "striptSig"), "asm").getValStr(), nVotes);
+        (*this).ReadVoteCount(find_value(find_value(entry, "striptSig"), "asm").getValStr(), nVotes);
         if(nVotes%2!=0) {
           batch.Write(std::make_pair(DB_VOTE_COUNT, find_value(find_value(entry, "scriptSig"), "asm").getValStr()), 0); 
         }
