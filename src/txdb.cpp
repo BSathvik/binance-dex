@@ -167,6 +167,7 @@ size_t CCoinsViewDB::EstimateSize() const
 CBlockTreeDB::CBlockTreeDB(size_t nCacheSize, bool fMemory, bool fWipe) : CDBWrapper(gArgs.IsArgSet("-blocksdir") ? GetDataDir() / "blocks" / "index" : GetBlocksDir() / "index", nCacheSize, fMemory, fWipe) {
 }
 
+// This declaration isn't working
 bool CCoinsViewDB::ReadVoteCount(const std::string addr, int& nVotes) { return true; } //TODO: finish this read method
 
 // TODO: Implement diff-wise vote counting at some point.
