@@ -18,6 +18,7 @@
 #include <univalue.h>
 #include <stdint.h>
 
+#include <boost/algorithm/string.hpp>
 #include <boost/thread.hpp>
 
 static const char DB_COIN = 'C';
@@ -46,6 +47,15 @@ static const char DB_VOTE_COUNT = 'v';
  */
 
 static const char DB_ADDR_CANDIDATES = 'V';
+
+// These next prefixes are just to make it easy
+
+/* DB_CANDIDATE_ADDRS: Entry in LevelDB prefixed by 'a'
+ * key: an enrolled address
+ * value: a list of addresses that are voting for it
+ */
+
+static const char DB_CANDIDATES_ADDR = 'a';
 
 namespace {
 
@@ -167,7 +177,25 @@ size_t CCoinsViewDB::EstimateSize() const
 CBlockTreeDB::CBlockTreeDB(size_t nCacheSize, bool fMemory, bool fWipe) : CDBWrapper(gArgs.IsArgSet("-blocksdir") ? GetDataDir() / "blocks" / "index" : GetBlocksDir() / "index", nCacheSize, fMemory, fWipe) {
 }
 
-bool CBlockTreeDB::ReadVoteCount(const std::string addr, int& nVotes) { return true; } //TODO: finish this read method
+bool CBlockTreeDB::ReadAddrCandidates(const std::string addr, std::vector<std::string>& enrolled) {
+  std::string str;
+  if(!Read(std::make_pair(DB_ADDR_CANDIDATES, addr), str))
+    return false;
+  boost::split(enrolled, str, boost::is_any_of(","));
+  return true;
+}
+
+bool CBlockTreeDB::ReadCandidatesAddr(const std::string addr, std::vector<std::string>& voters) {
+  std::string str;
+    if(!Read(std::make_pair(DB_CANDIDATES_ADDR, addr), str))
+      return false;
+    boost::split(voters, str, boost::is_any_of(","));
+    return true;
+}
+
+bool CBlockTreeDB::ReadVoteCount(const std::string addr, int& nVotes) {
+	return Read(std::make_pair(DB_VOTE_COUNT, addr), nVotes);
+} //TODO: finish this read method
 
 // TODO: Implement diff-wise vote counting at some point.
 bool CBlockTreeDB::WriteVoteCount(const CBlock* block) {
@@ -187,15 +215,30 @@ bool CBlockTreeDB::WriteVoteCount(const CBlock* block) {
         
         UniValue entry(UniValue::VOBJ);
         TxToUniv(**it, (block->GetBlockHeader()).GetHash(), entry);
-        (*this).ReadVoteCount(find_value(find_value(entry, "striptSig"), "asm").getValStr(), nVotes);
-        if(nVotes%2!=0) {
+
+        /**
+        * if there is no entry in the database associated to that address, OR
+        * there is a non-even value for the amount of enrollments
+        * this includes a value of -1, which is an arbitrary value indicating "not enrolled",
+        * for addresses that have been enrolled once but have unenrolled
+        */
+        if(!(*this).ReadVoteCount(find_value(find_value(entry, "striptSig"), "asm").getValStr(), nVotes) || nVotes==-1) {
           batch.Write(std::make_pair(DB_VOTE_COUNT, find_value(find_value(entry, "scriptSig"), "asm").getValStr()), 0); 
+        } else {
+
+        	// take each address that voted for this address
+        	// get their balance, increase other votes by an amount based on the amount of addresses they've voted on
+        	// remove this address from the list
+        	// set the value for this addresses' votes to -1
+
         }
       }
     }
   }
   return WriteBatch(batch);
 }
+
+
 
 bool CBlockTreeDB::ReadBlockFileInfo(int nFile, CBlockFileInfo &info) {
     return Read(std::make_pair(DB_BLOCK_FILES, nFile), info);
