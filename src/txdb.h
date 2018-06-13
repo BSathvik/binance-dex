@@ -127,7 +127,7 @@ public:
     bool ReadVoteCount(const std::string addr, int &nVotes);
     bool ReadAddrCandidates(const std::string addr, std::vector<std::string> &enrolled);
     bool ReadCandidatesAddr(const std::string addr, std::vector<std::string> &voters);
-
+    bool ReadAddrBalance(const std::string addr, int &nAmount);
 };
 
 /**

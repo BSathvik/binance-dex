@@ -57,6 +57,15 @@ static const char DB_ADDR_CANDIDATES = 'V';
 
 static const char DB_CANDIDATES_ADDR = 'a';
 
+// need this because it otherwise you need to scan the entire blockchain for balances, make cleaner and more secure
+
+/* DB_ADDR_BAL: Entry in LevelDB prefixed by 'b'
+ * key: an address
+ * value: that addresses' balance
+ */
+
+static const char DB_ADDR_BAL = 'A';
+
 namespace {
 
 struct CoinEntry {
@@ -195,7 +204,11 @@ bool CBlockTreeDB::ReadCandidatesAddr(const std::string addr, std::vector<std::s
 
 bool CBlockTreeDB::ReadVoteCount(const std::string addr, int& nVotes) {
 	return Read(std::make_pair(DB_VOTE_COUNT, addr), nVotes);
-} //TODO: finish this read method
+}
+
+bool CBlockTreeDB::ReadAddrBalance(const std::string addr, int &nAmount) {
+  return Read(std::make_pair(DB_ADDR_BAL, addr), nAmount);
+}
 
 // TODO: Implement diff-wise vote counting at some point.
 bool CBlockTreeDB::WriteVoteCount(const CBlock* block) {
@@ -222,9 +235,24 @@ bool CBlockTreeDB::WriteVoteCount(const CBlock* block) {
         * this includes a value of -1, which is an arbitrary value indicating "not enrolled",
         * for addresses that have been enrolled once but have unenrolled
         */
-        if(!(*this).ReadVoteCount(find_value(find_value(entry, "striptSig"), "asm").getValStr(), nVotes) || nVotes==-1) {
+        if(!(*this).ReadVoteCount(find_value(find_value(entry, "scriptSig"), "asm").getValStr(), nVotes) || nVotes==-1) {
           batch.Write(std::make_pair(DB_VOTE_COUNT, find_value(find_value(entry, "scriptSig"), "asm").getValStr()), 0); 
         } else {
+
+          nVotes = 0;
+          int nAmount;
+
+          if(!(*this).ReadAddrBalance(find_value(find_value(entry, "scriptSig"), "asm").getValStr(), nAmount)) {
+            batch.Write(std::make_pair(DB_ADDR_BAL, find_value(find_value(entry, "scriptSig"), "asm").getValStr()), 0);
+            nAmount = 0;
+          } else {
+
+            // for each address that this has voted for:
+            // update their entries in the databases (this means DB_VOTE_COUNT, DB_CANDIDATES_ADDR, DB_ADDR_CANDIDATES)
+            // this means using balance to increase vote count for all other candidates this address is voting for
+            // and removing from x user's "voting for" databases
+
+          }
 
         	// take each address that voted for this address
         	// get their balance, increase other votes by an amount based on the amount of addresses they've voted on
