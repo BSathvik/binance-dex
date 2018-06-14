@@ -1155,6 +1155,7 @@ public:
         // Serialize nVersion
         ::Serialize(s, txTo.nVersion);
         ::Serialize(s, txTo.type);
+        ::Serialize(s, txTo.assetType);
         ::Serialize(s, txTo.attr);
         // Serialize vin
         unsigned int nInputs = fAnyoneCanPay ? 1 : txTo.vin.size();
@@ -1240,6 +1241,8 @@ uint256 SignatureHash(const CScript& scriptCode, const CTransaction& txTo, unsig
         ss << txTo.nVersion;
         // Transaction Type
         ss << txTo.type;
+        // Asset Type
+        ss << txTo.assetType;
         // Attributes
         ss << txTo.attr;
         // Input prevouts/nSequence (none/all, depending on flags)
