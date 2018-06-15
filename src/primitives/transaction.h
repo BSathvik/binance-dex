@@ -15,6 +15,7 @@
 static const int SERIALIZE_TRANSACTION_NO_WITNESS = 0x40000000;
 
 typedef uint32_t CTransactionType;
+typedef uint64_t CAssetType;
 
 /** An outpoint - a combination of a transaction hash and an index n into its vout */
 class COutPoint
@@ -134,6 +135,7 @@ class CTxOut
 {
 public:
     CAmount nValue;
+    CAssetType assetType;
     CScript scriptPubKey;
 
     CTxOut()
@@ -148,6 +150,7 @@ public:
     template <typename Stream, typename Operation>
     inline void SerializationOp(Stream& s, Operation ser_action) {
         READWRITE(nValue);
+        READWRITE(assetType);
         READWRITE(scriptPubKey);
     }
 
@@ -165,7 +168,8 @@ public:
     friend bool operator==(const CTxOut& a, const CTxOut& b)
     {
         return (a.nValue       == b.nValue &&
-                a.scriptPubKey == b.scriptPubKey);
+                a.scriptPubKey == b.scriptPubKey &&
+                a.assetType    == b.assetType);
     }
 
     friend bool operator!=(const CTxOut& a, const CTxOut& b)
@@ -237,6 +241,7 @@ inline void UnserializeTransaction(TxType& tx, Stream& s) {
 
     s >> tx.nVersion;
     s >> tx.type;
+    s >> tx.assetType;
     s >> tx.attr;
     
     unsigned char flags = 0;
@@ -275,6 +280,7 @@ inline void SerializeTransaction(const TxType& tx, Stream& s) {
 
     s << tx.nVersion;
     s << tx.type;
+    s << tx.assetType;
     s << tx.attr;
     unsigned char flags = 0;
     // Consistency check
@@ -315,6 +321,9 @@ public:
     // bumping the default CURRENT_VERSION at which point both CURRENT_VERSION and
     // MAX_STANDARD_VERSION will be equal.
     static const int32_t MAX_STANDARD_VERSION=2;
+    
+    static const uint64_t NATIVE_ASSET=0x1;
+    
     // The local variables are made const to prevent unintended modification
     // without updating the cached hash value. However, CTransaction is not
     // actually immutable; deserialization and assignment are implemented,
@@ -325,6 +334,7 @@ public:
     const int32_t nVersion;
     const uint32_t nLockTime;
     const CTransactionType type;
+    const CAssetType assetType;
     const CTransactionAttributes attr;
 
 private:
@@ -410,6 +420,7 @@ struct CMutableTransaction
     int32_t nVersion;
     uint32_t nLockTime;
     CTransactionType type;
+    CAssetType assetType;
     CTransactionAttributes attr;
     
     CMutableTransaction();
