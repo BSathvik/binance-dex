@@ -186,9 +186,25 @@ size_t CCoinsViewDB::EstimateSize() const
 CBlockTreeDB::CBlockTreeDB(size_t nCacheSize, bool fMemory, bool fWipe) : CDBWrapper(gArgs.IsArgSet("-blocksdir") ? GetDataDir() / "blocks" / "index" : GetBlocksDir() / "index", nCacheSize, fMemory, fWipe) {
 }
 
+// TODO: Make WriteAddrCandidates and WriteCandidatesAddr instead of creating strings and splitting,
+// just appending to keys and iterating through keys, for example:
+// v<ADDRESS>0: address
+// v<ADDRESS>1: another address
+// v<ADDRESS>2: another address
+
 bool CBlockTreeDB::WriteAddrCandidates(const std::string addr, std::vector<std::string> enrolled) {
-  // TODO: finish, copy from WriteCandidatesAddr
-  return true;
+  if(enrolled.size()==0)
+    return true;
+
+  std::vector<std::string> tempEnrolled;
+  if(ReadCandidatesAddr(addr, tempEnrolled))
+    enrolled.insert(enrolled.end(), tempEnrolled.begin(), tempEnrolled.end());
+
+  std::ostringstream ss;
+  std::copy(enrolled.begin(), enrolled.end()-1, std::ostream_iterator<std::string>(ss, ","));
+  ss << enrolled.back();
+
+  return Write(std::make_pair(DB_CANDIDATES_ADDR, addr), ss.str());
 }
 
 bool CBlockTreeDB::ReadAddrCandidates(const std::string addr, std::vector<std::string>& enrolled) {
@@ -210,6 +226,7 @@ bool CBlockTreeDB::WriteCandidatesAddr(const std::string addr, std::vector<std::
   std::ostringstream ss;
   std::copy(voters.begin(), voters.end()-1, std::ostream_iterator<std::string>(ss, ","));
   ss << voters.back();
+
   return Write(std::make_pair(DB_CANDIDATES_ADDR, addr), ss.str());
 
 }
