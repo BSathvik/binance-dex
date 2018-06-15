@@ -186,12 +186,32 @@ size_t CCoinsViewDB::EstimateSize() const
 CBlockTreeDB::CBlockTreeDB(size_t nCacheSize, bool fMemory, bool fWipe) : CDBWrapper(gArgs.IsArgSet("-blocksdir") ? GetDataDir() / "blocks" / "index" : GetBlocksDir() / "index", nCacheSize, fMemory, fWipe) {
 }
 
+bool CBlockTreeDB::WriteAddrCandidates(const std::string addr, std::vector<std::string> enrolled) {
+  // TODO: finish, copy from WriteCandidatesAddr
+  return true;
+}
+
 bool CBlockTreeDB::ReadAddrCandidates(const std::string addr, std::vector<std::string>& enrolled) {
   std::string str;
-  if(!Read(std::make_pair(DB_ADDR_CANDIDATES, addr), str))
+  if(!Read(std::make_pair(DB_CANDIDATES_ADDR, addr), str))
     return false;
   boost::split(enrolled, str, boost::is_any_of(","));
   return true;
+}
+
+bool CBlockTreeDB::WriteCandidatesAddr(const std::string addr, std::vector<std::string> voters) {
+  if(voters.size()==0)
+    return true;
+
+  std::vector<std::string> tempVoters;
+  if(ReadCandidatesAddr(addr, tempVoters))
+    voters.insert(voters.end(), tempVoters.begin(), tempVoters.end());
+
+  std::ostringstream ss;
+  std::copy(voters.begin(), voters.end()-1, std::ostream_iterator<std::string>(ss, ","));
+  ss << voters.back();
+  return Write(std::make_pair(DB_CANDIDATES_ADDR, addr), ss.str());
+
 }
 
 bool CBlockTreeDB::ReadCandidatesAddr(const std::string addr, std::vector<std::string>& voters) {
@@ -202,12 +222,16 @@ bool CBlockTreeDB::ReadCandidatesAddr(const std::string addr, std::vector<std::s
     return true;
 }
 
-bool CBlockTreeDB::ReadVoteCount(const std::string addr, int& nVotes) {
-	return Read(std::make_pair(DB_VOTE_COUNT, addr), nVotes);
+bool CBlockTreeDB::WriteAddrBalance(const std::string addr, int nAmount) {
+  return Write(std::make_pair(DB_ADDR_BAL, addr), nAmount);
 }
 
 bool CBlockTreeDB::ReadAddrBalance(const std::string addr, int &nAmount) {
   return Read(std::make_pair(DB_ADDR_BAL, addr), nAmount);
+}
+
+bool CBlockTreeDB::ReadVoteCount(const std::string addr, int& nVotes) {
+  return Read(std::make_pair(DB_VOTE_COUNT, addr), nVotes);
 }
 
 // TODO: Implement diff-wise vote counting at some point.
@@ -217,7 +241,7 @@ bool CBlockTreeDB::WriteVoteCount(const CBlock* block) {
   if(CBlockIndex(block->GetBlockHeader()).nHeight == 0) {
     for (std::vector< CTransactionRef >::const_iterator it = (block->vtx).begin(); it != (block->vtx).end(); ++it) {
       
-      //TODO: look at diagram, finish this method
+      // TODO: look at diagram, finish this method
       // make a batch of things to write, look at examples in this file.
     }
   } else {
@@ -247,6 +271,8 @@ bool CBlockTreeDB::WriteVoteCount(const CBlock* block) {
             nAmount = 0;
           } else {
 
+
+
             // for each address that this has voted for:
             // update their entries in the databases (this means DB_VOTE_COUNT, DB_CANDIDATES_ADDR, DB_ADDR_CANDIDATES)
             // this means using balance to increase vote count for all other candidates this address is voting for
@@ -265,8 +291,6 @@ bool CBlockTreeDB::WriteVoteCount(const CBlock* block) {
   }
   return WriteBatch(batch);
 }
-
-
 
 bool CBlockTreeDB::ReadBlockFileInfo(int nFile, CBlockFileInfo &info) {
     return Read(std::make_pair(DB_BLOCK_FILES, nFile), info);
