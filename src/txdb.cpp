@@ -276,23 +276,40 @@ bool CBlockTreeDB::WriteVoteCount(const CBlock* block) {
         * this includes a value of -1, which is an arbitrary value indicating "not enrolled",
         * for addresses that have been enrolled once but have unenrolled
         */
-        if(!(*this).ReadVoteCount(find_value(find_value(entry, "scriptSig"), "asm").getValStr(), nVotes) || nVotes==-1) {
-          batch.Write(std::make_pair(DB_VOTE_COUNT, find_value(find_value(entry, "scriptSig"), "asm").getValStr()), 0); 
+
+        std::string sAddr = find_value(find_value(entry, "scriptSig"), "asm").getValStr();
+
+        if(!(*this).ReadVoteCount(sAddr, nVotes) || nVotes==-1) {
+          batch.Write(std::make_pair(DB_VOTE_COUNT, sAddr), 0);
         } else {
+
+          batch.Write(std::make_pair(DB_VOTE_COUNT, sAddr), -1);
 
           nVotes = 0;
           int nAmount;
 
-          if(!(*this).ReadAddrBalance(find_value(find_value(entry, "scriptSig"), "asm").getValStr(), nAmount)) {
-            batch.Write(std::make_pair(DB_ADDR_BAL, find_value(find_value(entry, "scriptSig"), "asm").getValStr()), 0);
+          if(!(*this).ReadAddrBalance(sAddr, nAmount)) {
+            batch.Write(std::make_pair(DB_ADDR_BAL, sAddr), 0);
             nAmount = 0;
           } else {
 
+            std::vector<std::string> votingFor;
+            if (!(*this).ReadCandidatesAddr(sAddr, votingFor))
+              batch.Write(std::make_pair(DB_CANDIDATES_ADDR, sAddr), votingFor);
 
+            for(std::vector<std::string>::const_iterator iter = votingFor.begin(); iter != votingFor.end(); ++iter) {
 
-            // for each address that this has voted for:
+              std::string voter = *iter;
+              std::vector<std::string> candidates;
+              (*this).ReadAddrCandidates(voter, candidates);
+              candidates.erase(std::remove(candidates.begin(), candidates.end(), sAddr), candidates.end());
+              (*this).WriteAddrCandidates(voter, candidates);
+
+            }
+
+            // for each address that is voting for this address:
             // update their entries in the databases (this means DB_VOTE_COUNT, DB_CANDIDATES_ADDR, DB_ADDR_CANDIDATES)
-            // this means using balance to increase vote count for all other candidates this address is voting for
+            // this means using balance to increase vote count for all other candidates that are voted for by nodes voting for this address
             // and removing from x user's "voting for" databases
 
           }
