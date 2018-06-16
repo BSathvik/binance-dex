@@ -252,101 +252,101 @@ bool CBlockTreeDB::ReadVoteCount(const std::string addr, int& nVotes) {
 }
 
 // TODO: Implement diff-wise vote counting at some point.
+// TODO: Confirm that batch initialization and addition is correct
+// TODO: Confirm that read and write methods are correct
+// TODO: Confirm that the way the read and write methods are called are correct
+// TODO: Confirm that there are no caveats to not adding to the batch with the read/write methods
 bool CBlockTreeDB::WriteVoteCount(const CBlock* block) {
   CDBBatch batch(*this); 
 
-  if(CBlockIndex(block->GetBlockHeader()).nHeight == 0) {
-    for (std::vector< CTransactionRef >::const_iterator it = (block->vtx).begin(); it != (block->vtx).end(); ++it) {
+  if(CBlockIndex(block->GetBlockHeader()).nHeight == 0)
+    // do something, genesis transaction prolly
+
+  for (std::vector< CTransactionRef >::const_iterator it = (block->vtx).begin(); it != (block->vtx).end(); ++it) {
+    std::shared_ptr<const CTransaction> currTransaction = *it;
+    if(currTransaction->type == CTransactionTypes::ENROLL) {
+      int nVotes;
       
-      // TODO: look at diagram, finish this method
-      // make a batch of things to write, look at examples in this file.
-    }
-  } else {
-    for (std::vector< CTransactionRef >::const_iterator it = (block->vtx).begin(); it != (block->vtx).end(); ++it) {
-      std::shared_ptr<const CTransaction> currTransaction = *it;
-      if(currTransaction->type == CTransactionTypes::ENROLL) {
-        int nVotes;
-        
-        UniValue entry(UniValue::VOBJ);
-        TxToUniv(**it, (block->GetBlockHeader()).GetHash(), entry);
+      UniValue entry(UniValue::VOBJ);
+      TxToUniv(**it, (block->GetBlockHeader()).GetHash(), entry);
 
-        /**
-        * if there is no entry in the database associated to that address, OR
-        * there is a non-even value for the amount of enrollments
-        * this includes a value of -1, which is an arbitrary value indicating "not enrolled",
-        * for addresses that have been enrolled once but have unenrolled
-        */
+      /**
+      * if there is no entry in the database associated to that address, OR
+      * there is a non-even value for the amount of enrollments
+      * this includes a value of -1, which is an arbitrary value indicating "not enrolled",
+      * for addresses that have been enrolled once but have unenrolled
+      */
 
-        std::string sAddr = find_value(find_value(entry, "scriptSig"), "asm").getValStr();
+      std::string sAddr = find_value(find_value(entry, "scriptSig"), "asm").getValStr();
 
-        if(!(*this).ReadVoteCount(sAddr, nVotes) || nVotes==-1) {
-          batch.Write(std::make_pair(DB_VOTE_COUNT, sAddr), 0);
+      if(!(*this).ReadVoteCount(sAddr, nVotes) || nVotes==-1) {
+        batch.Write(std::make_pair(DB_VOTE_COUNT, sAddr), 0);
+      } else {
+
+        batch.Write(std::make_pair(DB_VOTE_COUNT, sAddr), -1);
+
+        nVotes = 0;
+        int nAmount;
+
+        if(!(*this).ReadAddrBalance(sAddr, nAmount)) {
+          (*this).WriteAddrBalance(sAddr, 0);
+          nAmount = 0;
         } else {
 
-          batch.Write(std::make_pair(DB_VOTE_COUNT, sAddr), -1);
+          std::vector<std::string> votingFor;
+          if (!(*this).ReadCandidatesAddr(sAddr, votingFor))
+            (*this).WriteCandidatesAddr(sAddr, votingFor);
 
-          nVotes = 0;
-          int nAmount;
+          for(std::vector<std::string>::const_iterator iter = votingFor.begin(); iter != votingFor.end(); ++iter) {
 
-          if(!(*this).ReadAddrBalance(sAddr, nAmount)) {
-            (*this).WriteAddrBalance(sAddr, 0);
-            nAmount = 0;
-          } else {
+            // loop through all the voters for this address, and process their databases
 
-            std::vector<std::string> votingFor;
-            if (!(*this).ReadCandidatesAddr(sAddr, votingFor))
-              (*this).WriteCandidatesAddr(sAddr, votingFor);
+            std::string voter = *iter;
+            std::vector<std::string> candidates;
+            if((*this).ReadAddrCandidates(voter, candidates)) {
 
-            for(std::vector<std::string>::const_iterator iter = votingFor.begin(); iter != votingFor.end(); ++iter) {
+              // if reading candidates was successful, remove this candidate from this voter's DB_ADDR_CANDIDATES list
 
-              // loop through all the voters for this address, and process their databases
+              candidates.erase(std::remove(candidates.begin(), candidates.end(), sAddr), candidates.end());
+              (*this).WriteAddrCandidates(voter, candidates);
 
-              std::string voter = *iter;
-              std::vector<std::string> candidates;
-              if((*this).ReadAddrCandidates(voter, candidates)) {
+              for(std::vector<std::string>::const_iterator ii = candidates.begin(); ii != candidates.end(); ++ii) {
 
-                // if reading candidates was successful, remove this candidate from this voter's DB_ADDR_CANDIDATES list
+                // for each other candidate increase their amount by some fraction of the voter's balance
 
-                candidates.erase(std::remove(candidates.begin(), candidates.end(), sAddr), candidates.end());
-                (*this).WriteAddrCandidates(voter, candidates);
+                std::string otherCandidate = *ii;
+                int voterBal = 0;
 
-                for(std::vector<std::string>::const_iterator ii = candidates.begin(); ii != candidates.end(); ++ii) {
+                if(!(*this).ReadAddrBalance(voter, voterBal))
+                  (*this).WriteAddrBalance(voter, 0);
 
-                  // for each other candidate increase their amount by some fraction of the voter's balance
+                int otherCandidateVotes = 0;
+                if(!(*this).ReadVoteCount(otherCandidate, otherCandidateVotes))
+                  batch.Write(std::make_pair(DB_VOTE_COUNT, otherCandidate), voterBal/(candidates.size()+1));
 
-                  std::string otherCandidate = *ii;
-                  int voterBal = 0;
-
-                  if(!(*this).ReadAddrBalance(voter, voterBal))
-                    (*this).WriteAddrBalance(voter, 0);
-
-                  int otherCandidateVotes = 0;
-                  if(!(*this).ReadVoteCount(otherCandidate, otherCandidateVotes))
-                    batch.Write(std::make_pair(DB_VOTE_COUNT, otherCandidate), voterBal/(candidates.size()+1));
-
-                  batch.Write(std::make_pair(DB_VOTE_COUNT, otherCandidate), otherCandidateVotes - voterBal/(candidates.size()+1) + voterBal/(candidates.size()));
-
-                }
+                batch.Write(std::make_pair(DB_VOTE_COUNT, otherCandidate), otherCandidateVotes - voterBal/(candidates.size()+1) + voterBal/(candidates.size()));
 
               }
 
             }
 
-            // for each address that is voting for this address:
-            // update their entries in the databases (this means DB_VOTE_COUNT, DB_CANDIDATES_ADDR, DB_ADDR_CANDIDATES)
-            // this means using balance to increase vote count for all other candidates that are voted for by nodes voting for this address
-            // and removing from x user's "voting for" databases
-
           }
 
-        	// take each address that voted for this address
-        	// get their balance, increase other votes by an amount based on the amount of addresses they've voted on
-        	// remove this address from the list
-        	// set the value for this addresses' votes to -1
+          // for each address that is voting for this address:
+          // update their entries in the databases (this means DB_VOTE_COUNT, DB_CANDIDATES_ADDR, DB_ADDR_CANDIDATES)
+          // this means using balance to increase vote count for all other candidates that are voted for by nodes voting for this address
+          // and removing from x user's "voting for" databases
 
         }
+
+        // take each address that voted for this address
+        // get their balance, increase other votes by an amount based on the amount of addresses they've voted on
+        // remove this address from the list
+        // set the value for this addresses' votes to -1
+
       }
     }
+    
   }
   return WriteBatch(batch);
 }
