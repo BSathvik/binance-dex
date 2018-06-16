@@ -289,21 +289,46 @@ bool CBlockTreeDB::WriteVoteCount(const CBlock* block) {
           int nAmount;
 
           if(!(*this).ReadAddrBalance(sAddr, nAmount)) {
-            batch.Write(std::make_pair(DB_ADDR_BAL, sAddr), 0);
+            (*this).WriteAddrBalance(sAddr, 0);
             nAmount = 0;
           } else {
 
             std::vector<std::string> votingFor;
             if (!(*this).ReadCandidatesAddr(sAddr, votingFor))
-              batch.Write(std::make_pair(DB_CANDIDATES_ADDR, sAddr), votingFor);
+              (*this).WriteCandidatesAddr(sAddr, votingFor);
 
             for(std::vector<std::string>::const_iterator iter = votingFor.begin(); iter != votingFor.end(); ++iter) {
 
+              // loop through all the voters for this address, and process their databases
+
               std::string voter = *iter;
               std::vector<std::string> candidates;
-              (*this).ReadAddrCandidates(voter, candidates);
-              candidates.erase(std::remove(candidates.begin(), candidates.end(), sAddr), candidates.end());
-              (*this).WriteAddrCandidates(voter, candidates);
+              if((*this).ReadAddrCandidates(voter, candidates)) {
+
+                // if reading candidates was successful, remove this candidate from this voter's DB_ADDR_CANDIDATES list
+
+                candidates.erase(std::remove(candidates.begin(), candidates.end(), sAddr), candidates.end());
+                (*this).WriteAddrCandidates(voter, candidates);
+
+                for(std::vector<std::string>::const_iterator ii = candidates.begin(); ii != candidates.end(); ++ii) {
+
+                  // for each other candidate increase their amount by some fraction of the voter's balance
+
+                  std::string otherCandidate = *ii;
+                  int voterBal = 0;
+
+                  if(!(*this).ReadAddrBalance(voter, voterBal))
+                    (*this).WriteAddrBalance(voter, 0);
+
+                  int otherCandidateVotes = 0;
+                  if(!(*this).ReadVoteCount(otherCandidate, otherCandidateVotes))
+                    batch.Write(std::make_pair(DB_VOTE_COUNT, otherCandidate), voterBal/(candidates.size()+1));
+
+                  batch.Write(std::make_pair(DB_VOTE_COUNT, otherCandidate), otherCandidateVotes - voterBal/(candidates.size()+1) + voterBal/(candidates.size()));
+
+                }
+
+              }
 
             }
 
