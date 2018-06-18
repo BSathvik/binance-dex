@@ -257,7 +257,7 @@ bool CBlockTreeDB::ReadVoteCount(const std::string addr, int& nVotes) {
 // TODO: Confirm that the way the read and write methods are called are correct
 // TODO: Confirm that there are no caveats to not adding to the batch with the read/write methods
 bool CBlockTreeDB::WriteVoteCount(const CBlock* block) {
-  CDBBatch batch(*this); 
+  // CDBBatch batch(*this);
 
   if(CBlockIndex(block->GetBlockHeader()).nHeight == 0)
     // do something, genesis transaction prolly
@@ -279,23 +279,23 @@ bool CBlockTreeDB::WriteVoteCount(const CBlock* block) {
 
       std::string sAddr = find_value(find_value(entry, "scriptSig"), "asm").getValStr();
 
-      if(!(*this).ReadVoteCount(sAddr, nVotes) || nVotes==-1) {
-        batch.Write(std::make_pair(DB_VOTE_COUNT, sAddr), 0);
+      if(!ReadVoteCount(sAddr, nVotes) || nVotes==-1) {
+        Write(std::make_pair(DB_VOTE_COUNT, sAddr), 0);
       } else {
 
-        batch.Write(std::make_pair(DB_VOTE_COUNT, sAddr), -1);
+        Write(std::make_pair(DB_VOTE_COUNT, sAddr), -1);
 
         nVotes = 0;
         int nAmount;
 
-        if(!(*this).ReadAddrBalance(sAddr, nAmount)) {
-          (*this).WriteAddrBalance(sAddr, 0);
+        if(!ReadAddrBalance(sAddr, nAmount)) {
+          WriteAddrBalance(sAddr, 0);
           nAmount = 0;
         } else {
 
           std::vector<std::string> votingFor;
-          if (!(*this).ReadCandidatesAddr(sAddr, votingFor))
-            (*this).WriteCandidatesAddr(sAddr, votingFor);
+          if (!ReadCandidatesAddr(sAddr, votingFor))
+            WriteCandidatesAddr(sAddr, votingFor);
 
           for(std::vector<std::string>::const_iterator iter = votingFor.begin(); iter != votingFor.end(); ++iter) {
 
@@ -303,12 +303,12 @@ bool CBlockTreeDB::WriteVoteCount(const CBlock* block) {
 
             std::string voter = *iter;
             std::vector<std::string> candidates;
-            if((*this).ReadAddrCandidates(voter, candidates)) {
+            if(ReadAddrCandidates(voter, candidates)) {
 
               // if reading candidates was successful, remove this candidate from this voter's DB_ADDR_CANDIDATES list
 
               candidates.erase(std::remove(candidates.begin(), candidates.end(), sAddr), candidates.end());
-              (*this).WriteAddrCandidates(voter, candidates);
+              WriteAddrCandidates(voter, candidates);
 
               for(std::vector<std::string>::const_iterator ii = candidates.begin(); ii != candidates.end(); ++ii) {
 
@@ -317,18 +317,19 @@ bool CBlockTreeDB::WriteVoteCount(const CBlock* block) {
                 std::string otherCandidate = *ii;
                 int voterBal = 0;
 
-                if(!(*this).ReadAddrBalance(voter, voterBal))
-                  (*this).WriteAddrBalance(voter, 0);
+                if(!ReadAddrBalance(voter, voterBal))
+                  WriteAddrBalance(voter, 0);
 
                 int otherCandidateVotes = 0;
-                if(!(*this).ReadVoteCount(otherCandidate, otherCandidateVotes))
-                  batch.Write(std::make_pair(DB_VOTE_COUNT, otherCandidate), voterBal/(candidates.size()+1));
+                if(!ReadVoteCount(otherCandidate, otherCandidateVotes))
+                  Write(std::make_pair(DB_VOTE_COUNT, otherCandidate), voterBal/(candidates.size()+1));
 
-                batch.Write(std::make_pair(DB_VOTE_COUNT, otherCandidate), otherCandidateVotes - voterBal/(candidates.size()+1) + voterBal/(candidates.size()));
+                Write(std::make_pair(DB_VOTE_COUNT, otherCandidate), otherCandidateVotes - voterBal/(candidates.size()+1) + voterBal/(candidates.size()));
 
               }
 
             }
+
 
           }
 
@@ -344,11 +345,17 @@ bool CBlockTreeDB::WriteVoteCount(const CBlock* block) {
         // remove this address from the list
         // set the value for this addresses' votes to -1
 
+
+
+
       }
+
     }
     
+
+
   }
-  return WriteBatch(batch);
+  return true;
 }
 
 bool CBlockTreeDB::ReadBlockFileInfo(int nFile, CBlockFileInfo &info) {
