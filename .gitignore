@@ -54,6 +54,9 @@ src/qt/bitcoin-qt.includes
 .project/
 .project
 
+CMakeLists.txt
+cmake-build-debug/
+
 .deps
 .dirstamp
 .libs

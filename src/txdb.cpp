@@ -252,15 +252,14 @@ bool CBlockTreeDB::ReadVoteCount(const std::string addr, int& nVotes) {
 }
 
 // TODO: Implement diff-wise vote counting at some point.
-// TODO: Confirm that batch initialization and addition is correct
 // TODO: Confirm that read and write methods are correct
 // TODO: Confirm that the way the read and write methods are called are correct
-// TODO: Confirm that there are no caveats to not adding to the batch with the read/write methods
+// TODO: Use a batch where appropriate
 bool CBlockTreeDB::WriteVoteCount(const CBlock* block) {
   // CDBBatch batch(*this);
 
   if(CBlockIndex(block->GetBlockHeader()).nHeight == 0)
-    // do something, genesis transaction prolly
+    // TODO: do something, genesis transaction prolly
 
   for (std::vector< CTransactionRef >::const_iterator it = (block->vtx).begin(); it != (block->vtx).end(); ++it) {
     std::shared_ptr<const CTransaction> currTransaction = *it;
@@ -294,10 +293,10 @@ bool CBlockTreeDB::WriteVoteCount(const CBlock* block) {
         } else {
 
           std::vector<std::string> votingFor;
-          if (!ReadCandidatesAddr(sAddr, votingFor))
-            WriteCandidatesAddr(sAddr, votingFor);
+            if (!ReadCandidatesAddr(sAddr, votingFor))
+                WriteCandidatesAddr(sAddr, votingFor);
 
-          for(std::vector<std::string>::const_iterator iter = votingFor.begin(); iter != votingFor.end(); ++iter) {
+            for(std::vector<std::string>::const_iterator iter = votingFor.begin(); iter != votingFor.end(); ++iter) {
 
             // loop through all the voters for this address, and process their databases
 
@@ -322,9 +321,9 @@ bool CBlockTreeDB::WriteVoteCount(const CBlock* block) {
 
                 int otherCandidateVotes = 0;
                 if(!ReadVoteCount(otherCandidate, otherCandidateVotes))
-                  Write(std::make_pair(DB_VOTE_COUNT, otherCandidate), voterBal/(candidates.size()+1));
+                  Write(std::make_pair(DB_VOTE_COUNT, otherCandidate), (uint64_t)(voterBal/(candidates.size()+1)));
 
-                Write(std::make_pair(DB_VOTE_COUNT, otherCandidate), otherCandidateVotes - voterBal/(candidates.size()+1) + voterBal/(candidates.size()));
+                Write(std::make_pair(DB_VOTE_COUNT, otherCandidate), (uint64_t)(otherCandidateVotes - voterBal/(candidates.size()+1) + voterBal/(candidates.size())));
 
               }
 
@@ -333,6 +332,10 @@ bool CBlockTreeDB::WriteVoteCount(const CBlock* block) {
 
           }
 
+          std::vector<std::string> emptyVec;
+          // let's see how it goes if I call this...
+          WriteCandidatesAddr(sAddr, emptyVec);
+
           // for each address that is voting for this address:
           // update their entries in the databases (this means DB_VOTE_COUNT, DB_CANDIDATES_ADDR, DB_ADDR_CANDIDATES)
           // this means using balance to increase vote count for all other candidates that are voted for by nodes voting for this address
@@ -340,15 +343,38 @@ bool CBlockTreeDB::WriteVoteCount(const CBlock* block) {
 
         }
 
+        // general loop logic for this method:
         // take each address that voted for this address
         // get their balance, increase other votes by an amount based on the amount of addresses they've voted on
         // remove this address from the list
         // set the value for this addresses' votes to -1
 
-
-
-
       }
+
+    } else if (currTransaction->type == CTransactionTypes::VOTE) {
+
+      int nVotes;
+
+      UniValue entry(UniValue::VOBJ);
+      TxToUniv(**it, (block->GetBlockHeader()).GetHash(), entry);
+
+      /**
+      * get both addresses, if the address has been voted for,
+      * remove it from the list and update the other votes
+      * if the address has not been voted for, add it to the list and update the votes
+      */
+
+      std::string inputAddr = find_value(find_value(entry, "scriptSig"), "asm").getValStr();
+      std::string outputAddr;
+      std::vector<UniValue> voutAddresses = find_value(find_value(entry, "scriptPubKey"), "addresses").getValues();
+      if(voutAddresses.size()>2)
+        continue; // skip over this transaction, do not add because bad
+
+      for(unsigned int i = 0; i < voutAddresses.size(); i++) {
+        if(voutAddresses[i].getValStr() != inputAddr)
+          outputAddr = voutAddresses[i].getValStr();
+      }
+
 
     }
     
