@@ -90,7 +90,8 @@ struct CoinEntry {
 
 }
 
-CCoinsViewDB::CCoinsViewDB(size_t nCacheSize, bool fMemory, bool fWipe) : db(GetDataDir() / "chainstate", nCacheSize, fMemory, fWipe, true) 
+CCoinsViewDB::CCoinsViewDB(size_t nCacheSize, bool fMemory, bool fWipe) : db(GetDataDir() / "chainstate", nCacheSize,
+                                                                             fMemory, fWipe, true)
 {
 }
 
@@ -266,7 +267,7 @@ bool CBlockTreeDB::WriteVoteCount(const CBlock* block) {
     std::shared_ptr<const CTransaction> currTransaction = *it;
     if(currTransaction->type == CTransactionTypes::ENROLL) {
       int nVotes;
-      
+
       UniValue entry(UniValue::VOBJ);
       TxToUniv(**it, (block->GetBlockHeader()).GetHash(), entry);
 
@@ -354,8 +355,6 @@ bool CBlockTreeDB::WriteVoteCount(const CBlock* block) {
 
     } else if (currTransaction->type == CTransactionTypes::VOTE) {
 
-      int nVotes;
-
       UniValue entry(UniValue::VOBJ);
       TxToUniv(**it, (block->GetBlockHeader()).GetHash(), entry);
 
@@ -378,6 +377,10 @@ bool CBlockTreeDB::WriteVoteCount(const CBlock* block) {
 
       std::vector<std::string> otherEnrolled;
 
+      int nAmount = 0;
+      ReadAddrBalance(inputAddr, nAmount);
+      WriteAddrBalance(inputAddr, nAmount);
+
       // if the key isn't found / they've never voted
       if(!ReadAddrCandidates(inputAddr, otherEnrolled)) {
         otherEnrolled.insert(otherEnrolled.end(), outputAddr);
@@ -390,28 +393,86 @@ bool CBlockTreeDB::WriteVoteCount(const CBlock* block) {
         WriteCandidatesAddr(outputAddr, voters);
 
         // in case it doesn't exist
-        int nAmount = 0;
-        ReadAddrBalance(inputAddr, nAmount);
-        WriteAddrBalance(inputAddr, nAmount);
+
         Write(std::make_pair(DB_VOTE_COUNT, outputAddr), nAmount);
 
       } else {
         // if the key is found
-
         // if it is found in this candidates' readaddrcandidates then unvote, otherwise vote
         if(std::find(otherEnrolled.begin(), otherEnrolled.end(), outputAddr) != otherEnrolled.end()) {
-          // unvote (borrow all code from above)
+          // unvote
+
+          //erase from this voters' DB_ADDR_CANDIDATES list
+          otherEnrolled.erase(std::remove(otherEnrolled.begin(), otherEnrolled.end(), outputAddr), otherEnrolled.end());
+          WriteAddrCandidates(inputAddr, otherEnrolled);
+
+          // if there is nobody else, just set their votes to 0
+          if (otherEnrolled.size() == 0) {
+
+            Write(std::make_pair(DB_VOTE_COUNT, outputAddr), 0);
+
+          } else {
+
+            // for each other enrolled address, update other candidates' vote count
+            for (std::vector<std::string>::const_iterator ii = otherEnrolled.begin(); ii != otherEnrolled.end(); ++ii) {
+
+              std::string otherCandidate = *ii;
+
+              int otherCandidateVotes = 0;
+
+              // if they don't exist then add them and update their votes as if they had been voted for by this user
+              if (!ReadVoteCount(otherCandidate, otherCandidateVotes))
+                Write(std::make_pair(DB_VOTE_COUNT, otherCandidate), (uint64_t) (nAmount / (otherEnrolled.size() + 1)));
+
+              // now update their vote count accordingly
+              Write(std::make_pair(DB_VOTE_COUNT, otherCandidate),
+                    (uint64_t) (otherCandidateVotes - nAmount / (otherEnrolled.size() + 1) +
+                                nAmount / (otherEnrolled.size())));
+
+            }
+
+          }
+
         } else {
-          // vote (borrow all code from above)
+          // vote
+
+          otherEnrolled.insert(otherEnrolled.end(), outputAddr);
+          WriteAddrCandidates(inputAddr, otherEnrolled);
+
+          // if there is nobody else, just set their votes to the voters' balance
+          {
+
+            // for each other enrolled address, update other candidates' vote count
+            for (std::vector<std::string>::const_iterator ii = otherEnrolled.begin(); ii != otherEnrolled.end(); ++ii) {
+
+              std::string otherCandidate = *ii;
+
+              int otherCandidateVotes = 0;
+
+              // if they don't exist then add them and update their votes as if they hadn't been voted for by this user
+              if (!ReadVoteCount(otherCandidate, otherCandidateVotes))
+                Write(std::make_pair(DB_VOTE_COUNT, otherCandidate), (uint64_t) (nAmount / otherEnrolled.size()));
+
+              // now update their vote count accordingly
+              if (otherCandidate != outputAddr) {
+                Write(std::make_pair(DB_VOTE_COUNT, otherCandidate),
+                      (uint64_t) (otherCandidateVotes - nAmount / (otherEnrolled.size()) +
+                                  nAmount / (otherEnrolled.size() + 1)));
+
+              } else {
+                Write(std::make_pair(DB_VOTE_COUNT, otherCandidate),
+                      (uint64_t) (otherCandidateVotes + nAmount / otherEnrolled.size()));
+              }
+
+            }
+
+          }
+
         }
+
       }
 
-
-
-
     }
-    
-
 
   }
   return true;
