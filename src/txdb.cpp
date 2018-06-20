@@ -255,6 +255,7 @@ bool CBlockTreeDB::ReadVoteCount(const std::string addr, int& nVotes) {
 // TODO: Confirm that read and write methods are correct
 // TODO: Confirm that the way the read and write methods are called are correct
 // TODO: Use a batch where appropriate
+// TODO: Test for edge cases and stuff
 bool CBlockTreeDB::WriteVoteCount(const CBlock* block) {
   // CDBBatch batch(*this);
 
@@ -317,7 +318,7 @@ bool CBlockTreeDB::WriteVoteCount(const CBlock* block) {
                 int voterBal = 0;
 
                 if(!ReadAddrBalance(voter, voterBal))
-                  WriteAddrBalance(voter, 0);
+                  WriteAddrBalance(voter, voterBal);
 
                 int otherCandidateVotes = 0;
                 if(!ReadVoteCount(otherCandidate, otherCandidateVotes))
@@ -370,10 +371,42 @@ bool CBlockTreeDB::WriteVoteCount(const CBlock* block) {
       if(voutAddresses.size()>2)
         continue; // skip over this transaction, do not add because bad
 
-      for(unsigned int i = 0; i < voutAddresses.size(); i++) {
+      // TODO: Make sure that this is the correct way to get the output address, make sure there can only be 2 unique output addresses
+      for(unsigned int i = 0; i < voutAddresses.size(); i++)
         if(voutAddresses[i].getValStr() != inputAddr)
           outputAddr = voutAddresses[i].getValStr();
+
+      std::vector<std::string> otherEnrolled;
+
+      // if the key isn't found / they've never voted
+      if(!ReadAddrCandidates(inputAddr, otherEnrolled)) {
+        otherEnrolled.insert(otherEnrolled.end(), outputAddr);
+        WriteAddrCandidates(inputAddr, otherEnrolled);
+
+        // in case entry doesn't exist
+        std::vector<std::string> voters;
+        ReadCandidatesAddr(outputAddr, voters);
+        voters.insert(voters.end(), inputAddr);
+        WriteCandidatesAddr(outputAddr, voters);
+
+        // in case it doesn't exist
+        int nAmount = 0;
+        ReadAddrBalance(inputAddr, nAmount);
+        WriteAddrBalance(inputAddr, nAmount);
+        Write(std::make_pair(DB_VOTE_COUNT, outputAddr), nAmount);
+
+      } else {
+        // if the key is found
+
+        // if it is found in this candidates' readaddrcandidates then unvote, otherwise vote
+        if(std::find(otherEnrolled.begin(), otherEnrolled.end(), outputAddr) != otherEnrolled.end()) {
+          // unvote (borrow all code from above)
+        } else {
+          // vote (borrow all code from above)
+        }
       }
+
+
 
 
     }
