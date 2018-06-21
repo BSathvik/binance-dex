@@ -226,8 +226,9 @@ public:
     {
         LOCK2(cs_main, m_wallet.cs_wallet);
         auto pending = MakeUnique<PendingWalletTxImpl>(m_wallet);
+        CTransactionAttributes attr = CTransactionAttributes(CTransactionTypes::VALUE);
         if (!m_wallet.CreateTransaction(recipients, pending->m_tx, pending->m_key, fee, change_pos,
-                fail_reason, coin_control, CTransactionTypes::VALUE, sign)) {
+                fail_reason, coin_control, CTransactionTypes::VALUE, attr, sign)) {
             return {};
         }
         return std::move(pending);

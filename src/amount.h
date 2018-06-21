@@ -7,6 +7,7 @@
 #define BITCOIN_AMOUNT_H
 
 #include <stdint.h>
+#include <limits>
 
 /** Amount in satoshis (Can be negative) */
 typedef int64_t CAmount;
@@ -24,6 +25,10 @@ static const CAmount CENT = 1000000;
  * for the creation of coins out of thin air modification could lead to a fork.
  * */
 static const CAmount MAX_MONEY = 56616168 * COIN;
+
 inline bool MoneyRange(const CAmount& nValue) { return (nValue >= 0 && nValue <= MAX_MONEY); }
+
+
+inline bool AssetSupplyRange(const CAmount& nValue) {return (nValue >= 0 && nValue < std::numeric_limits<int64_t>::max()); }
 
 #endif //  BITCOIN_AMOUNT_H

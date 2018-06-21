@@ -474,7 +474,10 @@ static CTransactionRef SendMoney(CWallet * const pwallet, const CTxDestination &
     CRecipient recipient = {scriptPubKey, nValue, fSubtractFeeFromAmount};
     vecSend.push_back(recipient);
     CTransactionRef tx;
-    if (!pwallet->CreateTransaction(vecSend, tx, reservekey, nFeeRequired, nChangePosRet, strError, coin_control, CTransactionTypes::VALUE)) {
+    
+    CTransactionAttributes attr = CTransactionAttributes(CTransactionTypes::VALUE);
+        
+    if (!pwallet->CreateTransaction(vecSend, tx, reservekey, nFeeRequired, nChangePosRet, strError, coin_control, CTransactionTypes::VALUE, attr)) {
         if (!fSubtractFeeFromAmount && nValue + nFeeRequired > curBalance)
             strError = strprintf("Error: This transaction requires a transaction fee of at least %s", FormatMoney(nFeeRequired));
         throw JSONRPCError(RPC_WALLET_ERROR, strError);
@@ -497,17 +500,58 @@ static CTransactionRef SendVote(CWallet * const pwallet, const CTxDestination &a
 
     // Parse Bitcoin address
     CScript scriptPubKey = GetScriptForDestination(address);
-
+    bool fSubtractFeeFromAmount = false;
     // Create and send the transaction
     CReserveKey reservekey(pwallet);
     CAmount nFeeRequired;
     std::string strError;
     std::vector<CRecipient> vecSend;
     int nChangePosRet = -1;
-    CRecipient recipient = {scriptPubKey, 0, false};
+    CRecipient recipient = {scriptPubKey, 0, fSubtractFeeFromAmount};
     vecSend.push_back(recipient);
     CTransactionRef tx;
-    if (!pwallet->CreateTransaction(vecSend, tx, reservekey, nFeeRequired, nChangePosRet, strError, coin_control, CTransactionTypes::VOTE)) {
+    
+    CTransactionAttributes attr = CTransactionAttributes(CTransactionTypes::VOTE);
+    
+    if (!pwallet->CreateTransaction(vecSend, tx, reservekey, nFeeRequired, nChangePosRet, strError, coin_control, CTransactionTypes::VOTE, attr)) {
+        if (nFeeRequired > curBalance)
+            strError = strprintf("Error: This transaction requires a transaction fee of at least %s", FormatMoney(nFeeRequired));
+        throw JSONRPCError(RPC_WALLET_ERROR, strError);
+    }
+    CValidationState state;
+    if (!pwallet->CommitTransaction(tx, std::move(mapValue), {} /* orderForm */, std::move(fromAccount), reservekey, g_connman.get(), state)) {
+        strError = strprintf("Error: The transaction was rejected! Reason given: %s", FormatStateMessage(state));
+        throw JSONRPCError(RPC_WALLET_ERROR, strError);
+    }
+    return tx;
+}
+
+static CTransactionRef CreateNewAsset(CWallet * const pwallet, const CTxDestination &address, CAmount totalSupply, const CCoinControl& coin_control, mapValue_t mapValue, std::string fromAccount, std::string symbol)
+{
+    CAmount curBalance = pwallet->GetBalance();
+
+    if (pwallet->GetBroadcastTransactions() && !g_connman) {
+        throw JSONRPCError(RPC_CLIENT_P2P_DISABLED, "Error: Peer-to-peer functionality missing or disabled");
+    }
+
+    // Parse Bitcoin address
+    CScript scriptPubKey = GetScriptForDestination(address);
+
+    bool fSubtractFeeFromAmount = true; // This is intuitive if the transaction fees are high for creating a asset.
+    
+    // Create and send the transaction
+    CReserveKey reservekey(pwallet);
+    CAmount nFeeRequired;
+    std::string strError;
+    std::vector<CRecipient> vecSend;
+    int nChangePosRet = -1;
+    CRecipient recipient = {scriptPubKey, 0, fSubtractFeeFromAmount};
+    vecSend.push_back(recipient);
+    
+    CTransactionAttributes attr = CTransactionAttributes(CTransactionTypes::CREATE_COIN, symbol);
+    
+    CTransactionRef tx;
+    if (!pwallet->CreateTransaction(vecSend, tx, reservekey, nFeeRequired, nChangePosRet, strError, coin_control, CTransactionTypes::CREATE_COIN, attr)) {
         if (nFeeRequired > curBalance)
             strError = strprintf("Error: This transaction requires a transaction fee of at least %s", FormatMoney(nFeeRequired));
         throw JSONRPCError(RPC_WALLET_ERROR, strError);
@@ -540,7 +584,10 @@ static CTransactionRef EnrollAsWitness(CWallet * const pwallet, const CTxDestina
     CRecipient recipient = {scriptPubKey, 0, false};
     vecSend.push_back(recipient);
     CTransactionRef tx;
-    if (!pwallet->CreateTransaction(vecSend, tx, reservekey, nFeeRequired, nChangePosRet, strError, coin_control, CTransactionTypes::ENROLL)) {
+    
+    CTransactionAttributes attr = CTransactionAttributes(CTransactionTypes::ENROLL);
+        
+    if (!pwallet->CreateTransaction(vecSend, tx, reservekey, nFeeRequired, nChangePosRet, strError, coin_control, CTransactionTypes::ENROLL, attr)) {
         if (nFeeRequired > curBalance)
             strError = strprintf("Error: This transaction requires a transaction fee of at least %s", FormatMoney(nFeeRequired));
         throw JSONRPCError(RPC_WALLET_ERROR, strError);
@@ -554,7 +601,7 @@ static CTransactionRef EnrollAsWitness(CWallet * const pwallet, const CTxDestina
 }
 
 UniValue enrollaswitness(const JSONRPCRequest& request)
-{    
+{
     
     CWallet* const pwallet = GetWalletForJSONRPCRequest(request);
     if (!EnsureWalletIsAvailable(pwallet, request.fHelp)) {
@@ -604,24 +651,25 @@ UniValue sendtoaddress(const JSONRPCRequest& request)
         return NullUniValue;
     }
 
-    if (request.fHelp || request.params.size() < 2 || request.params.size() > 8)
+    if (request.fHelp || request.params.size() < 3 || request.params.size() > 9)
         throw std::runtime_error(
             "sendtoaddress \"address\" amount ( \"comment\" \"comment_to\" subtractfeefromamount replaceable conf_target \"estimate_mode\")\n"
             "\nSend an amount to a given address.\n"
             + HelpRequiringPassphrase(pwallet) +
             "\nArguments:\n"
             "1. \"address\"            (string, required) The bitcoin address to send to.\n"
-            "2. \"amount\"             (numeric or string, required) The amount in " + CURRENCY_UNIT + " to send. eg 0.1\n"
-            "3. \"comment\"            (string, optional) A comment used to store what the transaction is for. \n"
+            "2. \"asset_type\"          (string, required) The asset type to send to.\n"
+            "3. \"amount\"             (numeric or string, required) The amount in " + CURRENCY_UNIT + " to send. eg 0.1\n"
+            "4. \"comment\"            (string, optional) A comment used to store what the transaction is for. \n"
             "                             This is not part of the transaction, just kept in your wallet.\n"
-            "4. \"comment_to\"         (string, optional) A comment to store the name of the person or organization \n"
+            "5. \"comment_to\"         (string, optional) A comment to store the name of the person or organization \n"
             "                             to which you're sending the transaction. This is not part of the \n"
             "                             transaction, just kept in your wallet.\n"
-            "5. subtractfeefromamount  (boolean, optional, default=false) The fee will be deducted from the amount being sent.\n"
+            "6. subtractfeefromamount  (boolean, optional, default=false) The fee will be deducted from the amount being sent.\n"
             "                             The recipient will receive less bitcoins than you enter in the amount field.\n"
-            "6. replaceable            (boolean, optional) Allow this transaction to be replaced by a transaction with higher fees via BIP 125\n"
-            "7. conf_target            (numeric, optional) Confirmation target (in blocks)\n"
-            "8. \"estimate_mode\"      (string, optional, default=UNSET) The fee estimate mode, must be one of:\n"
+            "7. replaceable            (boolean, optional) Allow this transaction to be replaced by a transaction with higher fees via BIP 125\n"
+            "8. conf_target            (numeric, optional) Confirmation target (in blocks)\n"
+            "9. \"estimate_mode\"      (string, optional, default=UNSET) The fee estimate mode, must be one of:\n"
             "       \"UNSET\"\n"
             "       \"ECONOMICAL\"\n"
             "       \"CONSERVATIVE\"\n"
@@ -645,34 +693,39 @@ UniValue sendtoaddress(const JSONRPCRequest& request)
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid address");
     }
 
+    // Asset Type
+    CTxDestination assetType = DecodeDestination(request.params[1].get_str());
+    if (!IsValidDestination(dest)) // Currently a Valid Destination is possibly a valid assetType.
+        throw JSONRPCError(RPC_TYPE_ERROR, "Invalid amount for send");
+
     // Amount
-    CAmount nAmount = AmountFromValue(request.params[1]);
+    CAmount nAmount = AmountFromValue(request.params[2]);
     if (nAmount <= 0)
         throw JSONRPCError(RPC_TYPE_ERROR, "Invalid amount for send");
 
     // Wallet comments
     mapValue_t mapValue;
-    if (!request.params[2].isNull() && !request.params[2].get_str().empty())
-        mapValue["comment"] = request.params[2].get_str();
     if (!request.params[3].isNull() && !request.params[3].get_str().empty())
-        mapValue["to"] = request.params[3].get_str();
+        mapValue["comment"] = request.params[2].get_str();
+    if (!request.params[4].isNull() && !request.params[4].get_str().empty())
+        mapValue["to"] = request.params[4].get_str();
 
     bool fSubtractFeeFromAmount = false;
-    if (!request.params[4].isNull()) {
-        fSubtractFeeFromAmount = request.params[4].get_bool();
+    if (!request.params[5].isNull()) {
+        fSubtractFeeFromAmount = request.params[5].get_bool();
     }
 
     CCoinControl coin_control;
-    if (!request.params[5].isNull()) {
-        coin_control.m_signal_bip125_rbf = request.params[5].get_bool();
-    }
-
     if (!request.params[6].isNull()) {
-        coin_control.m_confirm_target = ParseConfirmTarget(request.params[6]);
+        coin_control.m_signal_bip125_rbf = request.params[6].get_bool();
     }
 
     if (!request.params[7].isNull()) {
-        if (!FeeModeFromString(request.params[7].get_str(), coin_control.m_fee_mode)) {
+        coin_control.m_confirm_target = ParseConfirmTarget(request.params[7]);
+    }
+
+    if (!request.params[8].isNull()) {
+        if (!FeeModeFromString(request.params[8].get_str(), coin_control.m_fee_mode)) {
             throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid estimate_mode parameter");
         }
     }
@@ -681,6 +734,67 @@ UniValue sendtoaddress(const JSONRPCRequest& request)
     EnsureWalletIsUnlocked(pwallet);
 
     CTransactionRef tx = SendMoney(pwallet, dest, nAmount, fSubtractFeeFromAmount, coin_control, std::move(mapValue), {} /* fromAccount */);
+    return tx->GetHash().GetHex();
+}
+
+
+UniValue createasset(const JSONRPCRequest& request)
+{
+    CWallet * const pwallet = GetWalletForJSONRPCRequest(request);
+    if (!EnsureWalletIsAvailable(pwallet, request.fHelp)) {
+        return NullUniValue;
+    }
+
+    if (request.fHelp || request.params.size() < 3 || request.params.size() > 5)
+        throw std::runtime_error(
+            "sendtoaddress \"address\" amount ( \"comment\" \"comment_to\" subtractfeefromamount replaceable conf_target \"estimate_mode\")\n"
+            "\nSend an amount to a given address.\n"
+            + HelpRequiringPassphrase(pwallet) +
+            "\nArguments:\n"
+            "1. \"address\"            (string, required) The bitcoin address to send to.\n"
+            "2. \"total_supply\"       (numeric or string, required) The amount in " + CURRENCY_UNIT + " to send. eg 0.1\n"
+            "3. \"symbol\"             (string, required) The tranding symbol for the asset.\n"
+            "4. \"comment\"            (string, optional) A comment used to store what the transaction is for. \n"
+            "                             This is not part of the transaction, just kept in your wallet.\n"
+            "\nResult:\n"
+            "\"txid\"                  (string) The transaction id.\n"
+            "\nExamples:\n"
+            + HelpExampleCli("createasset", "\"1M72Sfpbz1BPpXFHz9m3CdqATR44Jvaydd\" 2389012")
+            + HelpExampleCli("createasset", "\"1M72Sfpbz1BPpXFHz9m3CdqATR44Jvaydd\" 1000000000 \"donation\" \"seans outpost\"")
+            + HelpExampleCli("createasset", "\"1M72Sfpbz1BPpXFHz9m3CdqATR44Jvaydd\" 89231 \"\" \"\" true")
+            + HelpExampleRpc("createasset", "\"1M72Sfpbz1BPpXFHz9m3CdqATR44Jvaydd\",9000, \"donation\", \"seans outpost\"")
+        );
+
+    // Make sure the results are valid at least up to the most recent block
+    // the user could have gotten from another RPC command prior to now
+    pwallet->BlockUntilSyncedToCurrentChain();
+
+    LOCK2(cs_main, pwallet->cs_wallet);
+
+    CTxDestination dest = DecodeDestination(request.params[0].get_str());
+    if (!IsValidDestination(dest)) {
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid address");
+    }
+    std::string symbol = request.params[1].get_str();
+    if (symbol.empty())
+        throw JSONRPCError(RPC_TYPE_ERROR, "Invalid symbol for asset");
+    
+    // Amount
+    CAmount assetTotalSupply = AssetSupplyFromValue(request.params[2]);
+    if (assetTotalSupply <= 0)
+        throw JSONRPCError(RPC_TYPE_ERROR, "Invalid total supply of coin");
+
+    // Wallet comments
+    mapValue_t mapValue;
+    if (!request.params[2].isNull() && !request.params[3].get_str().empty())
+        mapValue["comment"] = request.params[3].get_str();
+
+    CCoinControl coin_control;
+    coin_control.m_signal_bip125_rbf = false; // Replacable ? Nope
+    
+    EnsureWalletIsUnlocked(pwallet);
+
+    CTransactionRef tx = CreateNewAsset(pwallet, dest, assetTotalSupply, coin_control, std::move(mapValue), request.params[0].get_str(), symbol);
     return tx->GetHash().GetHex();
 }
 
@@ -1429,7 +1543,8 @@ UniValue sendmany(const JSONRPCRequest& request)
     int nChangePosRet = -1;
     std::string strFailReason;
     CTransactionRef tx;
-    bool fCreated = pwallet->CreateTransaction(vecSend, tx, keyChange, nFeeRequired, nChangePosRet, strFailReason, coin_control, CTransactionTypes::VALUE);
+    CTransactionAttributes attr = CTransactionAttributes(CTransactionTypes::VALUE);
+    bool fCreated = pwallet->CreateTransaction(vecSend, tx, keyChange, nFeeRequired, nChangePosRet, strFailReason, coin_control, CTransactionTypes::VALUE, attr);
     if (!fCreated)
         throw JSONRPCError(RPC_WALLET_INSUFFICIENT_FUNDS, strFailReason);
     CValidationState state;

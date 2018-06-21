@@ -3031,6 +3031,13 @@ static bool CheckBlockHeader(const CBlockHeader& block, CValidationState& state,
     return true;
 }
 
+bool isValidAssetType(CTransactionType type)
+{
+    // TODO: Check if the asset exists already.
+    
+    return true;
+}
+
 // IMP CheckBlock
 bool CheckBlock(const CBlock& block, CValidationState& state, const Consensus::Params& consensusParams, bool fCheckPOW, bool fCheckMerkleRoot)
 {
