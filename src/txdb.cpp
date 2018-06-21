@@ -90,7 +90,8 @@ struct CoinEntry {
 
 }
 
-CCoinsViewDB::CCoinsViewDB(size_t nCacheSize, bool fMemory, bool fWipe) : db(GetDataDir() / "chainstate", nCacheSize, fMemory, fWipe, true) 
+CCoinsViewDB::CCoinsViewDB(size_t nCacheSize, bool fMemory, bool fWipe) : db(GetDataDir() / "chainstate", nCacheSize,
+                                                                             fMemory, fWipe, true)
 {
 }
 
@@ -251,21 +252,22 @@ bool CBlockTreeDB::ReadVoteCount(const std::string addr, int& nVotes) {
   return Read(std::make_pair(DB_VOTE_COUNT, addr), nVotes);
 }
 
-// TODO: Implement diff-wise vote counting at some point.
-// TODO: Confirm that read and write methods are correct
-// TODO: Confirm that the way the read and write methods are called are correct
-// TODO: Use a batch where appropriate
+/// TODO: Implement diff-wise vote counting at some point.
+/// TODO: Confirm that read and write methods are correct
+/// TODO: Confirm that the way the read and write methods are called are correct
+/// TODO: Use a batch where appropriate
+/// TODO: Test for edge cases and stuff
 bool CBlockTreeDB::WriteVoteCount(const CBlock* block) {
-  // CDBBatch batch(*this);
+  /// CDBBatch batch(*this);
 
   if(CBlockIndex(block->GetBlockHeader()).nHeight == 0)
-    // TODO: do something, genesis transaction prolly
+    /// TODO: do something, genesis transaction prolly
 
   for (std::vector< CTransactionRef >::const_iterator it = (block->vtx).begin(); it != (block->vtx).end(); ++it) {
     std::shared_ptr<const CTransaction> currTransaction = *it;
     if(currTransaction->type == CTransactionTypes::ENROLL) {
       int nVotes;
-      
+
       UniValue entry(UniValue::VOBJ);
       TxToUniv(**it, (block->GetBlockHeader()).GetHash(), entry);
 
@@ -298,26 +300,26 @@ bool CBlockTreeDB::WriteVoteCount(const CBlock* block) {
 
             for(std::vector<std::string>::const_iterator iter = votingFor.begin(); iter != votingFor.end(); ++iter) {
 
-            // loop through all the voters for this address, and process their databases
+            /// loop through all the voters for this address, and process their databases
 
             std::string voter = *iter;
             std::vector<std::string> candidates;
             if(ReadAddrCandidates(voter, candidates)) {
 
-              // if reading candidates was successful, remove this candidate from this voter's DB_ADDR_CANDIDATES list
+              /// if reading candidates was successful, remove this candidate from this voter's DB_ADDR_CANDIDATES list
 
               candidates.erase(std::remove(candidates.begin(), candidates.end(), sAddr), candidates.end());
               WriteAddrCandidates(voter, candidates);
 
               for(std::vector<std::string>::const_iterator ii = candidates.begin(); ii != candidates.end(); ++ii) {
 
-                // for each other candidate increase their amount by some fraction of the voter's balance
+                /// for each other candidate increase their amount by some fraction of the voter's balance
 
                 std::string otherCandidate = *ii;
                 int voterBal = 0;
 
                 if(!ReadAddrBalance(voter, voterBal))
-                  WriteAddrBalance(voter, 0);
+                  WriteAddrBalance(voter, voterBal);
 
                 int otherCandidateVotes = 0;
                 if(!ReadVoteCount(otherCandidate, otherCandidateVotes))
@@ -333,27 +335,28 @@ bool CBlockTreeDB::WriteVoteCount(const CBlock* block) {
           }
 
           std::vector<std::string> emptyVec;
-          // let's see how it goes if I call this...
+          /// let's see how it goes if I call this...
           WriteCandidatesAddr(sAddr, emptyVec);
 
-          // for each address that is voting for this address:
-          // update their entries in the databases (this means DB_VOTE_COUNT, DB_CANDIDATES_ADDR, DB_ADDR_CANDIDATES)
-          // this means using balance to increase vote count for all other candidates that are voted for by nodes voting for this address
-          // and removing from x user's "voting for" databases
-
+          /**
+           * for each address that is voting for this address:
+           * update their entries in the databases (this means DB_VOTE_COUNT, DB_CANDIDATES_ADDR, DB_ADDR_CANDIDATES)
+           * this means using balance to increase vote count for all other candidates that are voted for by nodes voting for this address
+           * and removing from x user's "voting for" databases
+           */
         }
 
-        // general loop logic for this method:
-        // take each address that voted for this address
-        // get their balance, increase other votes by an amount based on the amount of addresses they've voted on
-        // remove this address from the list
-        // set the value for this addresses' votes to -1
+        /**
+         * general loop logic for this method:
+         * take each address that voted for this address
+         * get their balance, increase other votes by an amount based on the amount of addresses they've voted on
+         * remove this address from the list
+         * set the value for this addresses' votes to -1
+         */
 
       }
 
     } else if (currTransaction->type == CTransactionTypes::VOTE) {
-
-      int nVotes;
 
       UniValue entry(UniValue::VOBJ);
       TxToUniv(**it, (block->GetBlockHeader()).GetHash(), entry);
@@ -367,18 +370,164 @@ bool CBlockTreeDB::WriteVoteCount(const CBlock* block) {
       std::string inputAddr = find_value(find_value(entry, "scriptSig"), "asm").getValStr();
       std::string outputAddr;
       std::vector<UniValue> voutAddresses = find_value(find_value(entry, "scriptPubKey"), "addresses").getValues();
-      if(voutAddresses.size()>2)
-        continue; // skip over this transaction, do not add because bad
+      if (voutAddresses.size() != 2)
+        continue; /// skip over this transaction, do not add because bad
 
-      for(unsigned int i = 0; i < voutAddresses.size(); i++) {
+      /// TODO: Make sure that this is the correct way to get the output address, make sure there can only be 2 unique output addresses
+      for(unsigned int i = 0; i < voutAddresses.size(); i++)
         if(voutAddresses[i].getValStr() != inputAddr)
           outputAddr = voutAddresses[i].getValStr();
+
+      std::vector<std::string> otherEnrolled;
+
+      int nAmount = 0;
+      ReadAddrBalance(inputAddr, nAmount);
+      WriteAddrBalance(inputAddr, nAmount);
+
+      /// if the key isn't found / they've never voted
+      if(!ReadAddrCandidates(inputAddr, otherEnrolled)) {
+        otherEnrolled.insert(otherEnrolled.end(), outputAddr);
+        WriteAddrCandidates(inputAddr, otherEnrolled);
+
+        /// in case entry doesn't exist
+        std::vector<std::string> voters;
+        ReadCandidatesAddr(outputAddr, voters);
+        voters.insert(voters.end(), inputAddr);
+        WriteCandidatesAddr(outputAddr, voters);
+
+        /// in case it doesn't exist
+
+        Write(std::make_pair(DB_VOTE_COUNT, outputAddr), nAmount);
+
+      } else {
+        /// if the key is found
+        /// if it is found in this candidates' readaddrcandidates then unvote, otherwise vote
+        if(std::find(otherEnrolled.begin(), otherEnrolled.end(), outputAddr) != otherEnrolled.end()) {
+          /// unvote
+
+          /// erase from this voters' DB_ADDR_CANDIDATES list
+          otherEnrolled.erase(std::remove(otherEnrolled.begin(), otherEnrolled.end(), outputAddr), otherEnrolled.end());
+          WriteAddrCandidates(inputAddr, otherEnrolled);
+
+          /// if there is nobody else, just set their votes to 0
+          if (otherEnrolled.size() == 0) {
+
+            Write(std::make_pair(DB_VOTE_COUNT, outputAddr), 0);
+
+          } else {
+
+            /// for each other enrolled address, update other candidates' vote count
+            for (std::vector<std::string>::const_iterator ii = otherEnrolled.begin(); ii != otherEnrolled.end(); ++ii) {
+
+              std::string otherCandidate = *ii;
+
+              int otherCandidateVotes = 0;
+
+              /// if they don't exist then add them and update their votes as if they had been voted for by this user
+              if (!ReadVoteCount(otherCandidate, otherCandidateVotes))
+                Write(std::make_pair(DB_VOTE_COUNT, otherCandidate), (uint64_t) (nAmount / (otherEnrolled.size() + 1)));
+
+              /// now update their vote count accordingly
+              Write(std::make_pair(DB_VOTE_COUNT, otherCandidate),
+                    (uint64_t) (otherCandidateVotes - nAmount / (otherEnrolled.size() + 1) +
+                                nAmount / (otherEnrolled.size())));
+
+            }
+
+          }
+
+        } else {
+          /// vote
+
+          otherEnrolled.insert(otherEnrolled.end(), outputAddr);
+          WriteAddrCandidates(inputAddr, otherEnrolled);
+
+          /// if there is nobody else, just set their votes to the voters' balance
+          {
+
+            /// for each other enrolled address, update other candidates' vote count
+            for (std::vector<std::string>::const_iterator ii = otherEnrolled.begin(); ii != otherEnrolled.end(); ++ii) {
+
+              std::string otherCandidate = *ii;
+
+              int otherCandidateVotes = 0;
+
+              /// if they don't exist then add them and update their votes as if they hadn't been voted for by this user
+              if (!ReadVoteCount(otherCandidate, otherCandidateVotes))
+                Write(std::make_pair(DB_VOTE_COUNT, otherCandidate), (uint64_t) (nAmount / otherEnrolled.size()));
+
+              /// now update their vote count accordingly
+              if (otherCandidate != outputAddr) {
+                Write(std::make_pair(DB_VOTE_COUNT, otherCandidate),
+                      (uint64_t) (otherCandidateVotes - nAmount / (otherEnrolled.size()) +
+                                  nAmount / (otherEnrolled.size() + 1)));
+
+              } else {
+                Write(std::make_pair(DB_VOTE_COUNT, otherCandidate),
+                      (uint64_t) (otherCandidateVotes + nAmount / otherEnrolled.size()));
+              }
+
+            }
+
+          }
+
+        }
+
+      }
+
+    } else if (currTransaction->type == CTransactionTypes::VALUE) {
+
+      UniValue entry(UniValue::VOBJ);
+      TxToUniv(**it, (block->GetBlockHeader()).GetHash(), entry);
+
+      /**
+      * subtract from inputAddr's candidates the value of the transaction / the amount of other enrolled addresses
+      * add to outputAddr's candidates the value of transaction / the amount of other enrolled addresses
+      * update each balance accordingly
+      */
+
+      std::string inputAddr = find_value(find_value(entry, "scriptSig"), "asm").getValStr();
+      std::vector<std::string> inputCandidates;
+
+      std::vector<std::string> outputAddrs;
+      std::vector<std::string> outputCandidates;
+      std::vector<std::string> outputBalances;
+
+      std::vector<UniValue> voutAddresses;
+
+      /// find the vout value, get all vouts
+      std::vector<UniValue> voutObjects = find_value(entry, "vout").getValues();
+
+      /// support for one to many, TODO: need to check that this is the right way to get the addresses meant for vouts
+
+      for (unsigned int j = 0; j < voutObjects.size(); j++) {
+
+        voutAddresses = find_value(voutObjects[j], "addresses").getValues();
+
+        for (unsigned int i = 0; i < voutAddresses[i].size(); i++)
+          if (voutAddresses[i].getValStr() != inputAddr) {
+            outputBalances.insert(outputBalances.end(), find_value(voutObjects[j], "value").getValStr());
+            outputAddrs.insert(outputAddrs.end(), voutAddresses[i].getValStr());
+          }
+      }
+
+      if(ReadAddrCandidates(inputAddr, inputCandidates)) {
+        for(std::vector<std::string>::const_iterator ii = inputCandidates.begin(); ii != inputCandidates.end(); ++ii) {
+
+          std::string candidateAddr = *ii;
+          int nVotes = 0;
+
+          if(ReadVoteCount(candidateAddr, nVotes)) {
+            // do stuff
+          }
+
+        }
       }
 
 
+      /// First subtract from inputCandidates' candidate's vote balances then add to each outputCandidate's
+      /// at the end subtract from their balances in the database
     }
-    
-
 
   }
   return true;
