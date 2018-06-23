@@ -258,19 +258,23 @@ bool CBlockTreeDB::ReadVoteCount(const std::string addr, int& nVotes) {
 /// TODO: Confirm that the way the read and write methods are called are correct
 /// TODO: Use a batch where appropriate
 /// TODO: Test for edge cases and stuff
-bool CBlockTreeDB::WriteVoteCount(const CBlock* block) {
+bool CBlockTreeDB::WriteVoteCount(const CBlock& block) {
   /// CDBBatch batch(*this);
 
-  if(CBlockIndex(block->GetBlockHeader()).nHeight == 0)
-    /// TODO: do something, genesis transaction prolly
-
-  for (std::vector< CTransactionRef >::const_iterator it = (block->vtx).begin(); it != (block->vtx).end(); ++it) {
+  for (std::vector< CTransactionRef >::const_iterator it = (block.vtx).begin(); it != (block.vtx).end(); ++it) {
     std::shared_ptr<const CTransaction> currTransaction = *it;
+
+    if (CBlockIndex(block.GetBlockHeader()).nHeight == 0) {
+      UniValue entry(UniValue::VOBJ);
+      TxToUniv(**it, (block.GetBlockHeader()).GetHash(), entry);
+      std::string sAddr = find_value(find_value(entry, "scriptSig"), "asm").getValStr();
+    }
+
     if(currTransaction->type == CTransactionTypes::ENROLL) {
       int nVotes;
 
       UniValue entry(UniValue::VOBJ);
-      TxToUniv(**it, (block->GetBlockHeader()).GetHash(), entry);
+      TxToUniv(**it, (block.GetBlockHeader()).GetHash(), entry);
 
       /**
       * If there is no entry in the database associated to that address, OR
@@ -280,6 +284,7 @@ bool CBlockTreeDB::WriteVoteCount(const CBlock* block) {
       */
 
       std::string sAddr = find_value(find_value(entry, "scriptSig"), "asm").getValStr();
+
 
       if(!ReadVoteCount(sAddr, nVotes) || nVotes==-1) {
         Write(std::make_pair(DB_VOTE_COUNT, sAddr), 0);
@@ -360,7 +365,7 @@ bool CBlockTreeDB::WriteVoteCount(const CBlock* block) {
     } else if (currTransaction->type == CTransactionTypes::VOTE) {
 
       UniValue entry(UniValue::VOBJ);
-      TxToUniv(**it, (block->GetBlockHeader()).GetHash(), entry);
+      TxToUniv(**it, (block.GetBlockHeader()).GetHash(), entry);
 
       /**
       * Get both addresses, if the address has been voted for,
@@ -479,7 +484,7 @@ bool CBlockTreeDB::WriteVoteCount(const CBlock* block) {
     } else if (currTransaction->type == CTransactionTypes::VALUE) {
 
       UniValue entry(UniValue::VOBJ);
-      TxToUniv(**it, (block->GetBlockHeader()).GetHash(), entry);
+      TxToUniv(**it, (block.GetBlockHeader()).GetHash(), entry);
 
       /**
       * Subtract from inputAddr's candidates the value of the transaction / the amount of other enrolled addresses
