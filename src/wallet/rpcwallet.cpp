@@ -4452,7 +4452,8 @@ static const CRPCCommand commands[] =
     { "wallet",             "setlabel",                         &setlabel,                      {"address","label"} },
 
     { "generating",         "generate",                         &generate,                      {"nblocks","maxtries"} },
-    { "wallet",             "enrollaswitness",                  &enrollaswitness,                 {} },
+    { "wallet",             "enrollaswitness",                  &enrollaswitness,               {} },
+    { "wallet",             "createasset",                      &createasset,                   {"address","total_supply","symbol","comment"} },
 };
 
 void RegisterWalletRPCCommands(CRPCTable &t)
