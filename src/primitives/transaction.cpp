@@ -54,7 +54,11 @@ std::string CTxOut::ToString() const
     return strprintf("CTxOut(nValue=%d.%08d, assetType=%u, scriptPubKey=%s)", nValue / COIN, nValue % COIN, assetType, HexStr(scriptPubKey).substr(0, 30));
 }
 
-CMutableTransaction::CMutableTransaction() : nVersion(CTransaction::CURRENT_VERSION), type(CTransactionTypes::VALUE), attr(), assetType(CTransaction::NATIVE_ASSET), nLockTime(0) {}
+CTransactionAttributes::CTransactionAttributes(): type(CTransactionTypes::VALUE){}
+CTransactionAttributes::CTransactionAttributes(CTransactionType txType): type(txType){}
+CTransactionAttributes::CTransactionAttributes(CTransactionType txType, std::string assetSymbol): type(txType), assetSymbol(assetSymbol){}
+    
+CMutableTransaction::CMutableTransaction() : nVersion(CTransaction::CURRENT_VERSION), type(CTransactionTypes::VALUE), attr(CTransactionAttributes()), assetType(CTransaction::NATIVE_ASSET), nLockTime(0) {}
 CMutableTransaction::CMutableTransaction(const CTransaction& tx) : vin(tx.vin), vout(tx.vout), nVersion(tx.nVersion), type(tx.type), attr(tx.attr), assetType(tx.assetType), nLockTime(tx.nLockTime) {}
 
 uint256 CMutableTransaction::GetHash() const
@@ -76,11 +80,10 @@ uint256 CTransaction::GetWitnessHash() const
 }
 
 /* For backward compatibility, the hash is initialized to 0. TODO: remove the need for this default constructor entirely. */
-CTransaction::CTransaction() : vin(), vout(), nVersion(CTransaction::CURRENT_VERSION), type(CTransactionTypes::VALUE), attr(), assetType(CTransaction::NATIVE_ASSET), nLockTime(0), hash() {}
+CTransaction::CTransaction() : vin(), vout(), nVersion(CTransaction::CURRENT_VERSION), type(CTransactionTypes::VALUE), attr(CTransactionAttributes()), assetType(CTransaction::NATIVE_ASSET), nLockTime(0), hash() {}
 CTransaction::CTransaction(const CMutableTransaction &tx) : vin(tx.vin), vout(tx.vout), nVersion(tx.nVersion), type(tx.type), attr(tx.attr), assetType(tx.assetType), nLockTime(tx.nLockTime), hash(ComputeHash()) {}
 CTransaction::CTransaction(CMutableTransaction &&tx) : vin(std::move(tx.vin)), vout(std::move(tx.vout)), nVersion(tx.nVersion), type(tx.type), attr(std::move(tx.attr)), assetType(tx.assetType), nLockTime(tx.nLockTime), hash(ComputeHash()) {}
 
-CTransactionAttributes::CTransactionAttributes(){}
 
 CAmount CTransaction::GetValueOut() const
 {

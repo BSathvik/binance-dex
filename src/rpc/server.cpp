@@ -115,6 +115,18 @@ CAmount AmountFromValue(const UniValue& value)
     return amount;
 }
 
+CAmount AssetSupplyFromValue(const UniValue& value)
+{
+    if (!value.isNum() && !value.isStr())
+        throw std::runtime_error("Amount is not a number or string");
+    CAmount amount;
+    if (!ParseFixedPoint(value.getValStr(), 8, &amount))
+        throw std::runtime_error("Invalid amount");
+    if (!AssetSupplyRange(amount))
+        throw std::runtime_error("Amount out of range");
+    return amount;
+}
+
 uint256 ParseHashV(const UniValue& v, std::string strName)
 {
     std::string strHex;

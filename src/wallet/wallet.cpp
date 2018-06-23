@@ -2631,7 +2631,8 @@ bool CWallet::FundTransaction(CMutableTransaction& tx, CAmount& nFeeRet, int& nC
 
     CReserveKey reservekey(this);
     CTransactionRef tx_new;
-    if (!CreateTransaction(vecSend, tx_new, reservekey, nFeeRet, nChangePosInOut, strFailReason, coinControl, CTransactionTypes::VALUE, false)) {
+    CTransactionAttributes attr = CTransactionAttributes(CTransactionTypes::VALUE);
+    if (!CreateTransaction(vecSend, tx_new, reservekey, nFeeRet, nChangePosInOut, strFailReason, coinControl, CTransactionTypes::VALUE, attr, false)) {
         return false;
     }
 
@@ -2691,7 +2692,7 @@ OutputType CWallet::TransactionChangeType(OutputType change_type, const std::vec
 }
 
 bool CWallet::CreateTransaction(const std::vector<CRecipient>& vecSend, CTransactionRef& tx, CReserveKey& reservekey, CAmount& nFeeRet,
-                                int& nChangePosInOut, std::string& strFailReason, const CCoinControl& coin_control, CTransactionType type, bool sign)
+                                int& nChangePosInOut, std::string& strFailReason, const CCoinControl& coin_control, CTransactionType type, CTransactionAttributes &attr, bool sign)
 {
     CAmount nValue = 0;
     int nChangePosRequest = nChangePosInOut;
@@ -3041,7 +3042,12 @@ bool CWallet::CreateTransaction(const std::vector<CRecipient>& vecSend, CTransac
                 nIn++;
             }
         }
-
+        
+        // Attributes
+        if (txNew.type == CTransactionTypes::CREATE_COIN){
+            
+            
+        }
         // Return the constructed transaction data.
         tx = MakeTransactionRef(std::move(txNew));
 

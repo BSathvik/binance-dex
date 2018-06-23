@@ -17,6 +17,15 @@ static const int SERIALIZE_TRANSACTION_NO_WITNESS = 0x40000000;
 typedef uint32_t CTransactionType;
 typedef uint64_t CAssetType;
 
+struct CTransactionTypes{
+    
+    static const CTransactionType VALUE = 0x1;
+    static const CTransactionType VOTE = 0x45;
+    static const CTransactionType ENROLL = 0x65;
+    static const CTransactionType CREATE_COIN = 0x79;
+    
+};
+
 /** An outpoint - a combination of a transaction hash and an index n into its vout */
 class COutPoint
 {
@@ -180,18 +189,25 @@ public:
     std::string ToString() const;
 };
 
-struct CTransactionAttributes
+class CTransactionAttributes
 {
 public:
-    uint32_t type = 6968;
-    //CTransactionAttributes(uint32_t &Txtype);
+    CTransactionType type;
+    std::string assetSymbol;
+    
     CTransactionAttributes();
+    CTransactionAttributes(CTransactionType txType);
+    CTransactionAttributes(CTransactionType txType, std::string assetSymbol);
     
     ADD_SERIALIZE_METHODS;
     
     template <typename Stream, typename Operation>
     inline void SerializationOp(Stream& s, Operation ser_action) {
         READWRITE(type);
+        
+        if (type == CTransactionTypes::CREATE_COIN){
+            READWRITE(type);
+        }
     }
     
     friend bool operator==(const CTransactionAttributes& a, const CTransactionAttributes& b)
@@ -207,14 +223,6 @@ public:
     std::string ToString() const;
 };
 
-
-struct CTransactionTypes{
-    
-    static const CTransactionType VALUE = 0x1;
-    static const CTransactionType VOTE = 0x45;
-    static const CTransactionType ENROLL = 0x65;
-        
-};
 
 struct CMutableTransaction;
 
