@@ -1,6 +1,17 @@
 Binance Dex
 =====================================
 
+
+Binance Decentralized Exchange
+----------------
+We are submitting this project as a part of the [Binance DEXathon](https://medium.com/binanceexchange/binance-dexathon-845dc0cbfffe), a coding competition held by Binance with the goal of building a Decentralized exchange. Our implementation of a decentralized exchange is built off of Bitcoin, with many major changes to certain inner workings of bitcoin that improve its scalability. 
+
+We removed Proof-of-Work and replaced it with a new implementation of Delegated Proof-of-Stake, a consensus algorithm that involves voting in block producers, who are selected to produce blocks on a schedule, in order to maintain a consistent blocktime while being able to handle many more transactions per second than most other consensus mechanisms. We will explain the tradeoffs of using this type of consensus in the "Design Rationale" section below. 
+
+After implementing Delegated Proof-of-Stake, the main challenge of this project, we implemented the required market functions easily by creating new fields in transactions as well as new transaction types. In our case, market order transactions, asset transactions, asset creation, and native coin transactions are each different transaction types. We also added transaction attributes, allowing us to easily add the required information for each new transaction type. These attributes, as well as the way that we have separated the transaction types, make it very easy to add market features that are related to any type of value exchange, without using or needing any Ethereum or NEO-style smart contracts. Everything is baked directly into the blockchain.
+
+For this reason, we can run an off-chain matching engine within a full node that is able to execute an atomic trade event. 
+
 Running a node using Docker
 ----------------
 The Dockerfile builds an image with all the dependencies installed on Ubuntu 16.04 LTS.
