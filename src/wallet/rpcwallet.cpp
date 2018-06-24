@@ -537,7 +537,7 @@ static CTransactionRef CreateNewAsset(CWallet * const pwallet, const CTxDestinat
     // Parse Bitcoin address
     CScript scriptPubKey = GetScriptForDestination(address);
 
-    bool fSubtractFeeFromAmount = true; // This is intuitive if the transaction fees are high for creating a asset.
+    bool fSubtractFeeFromAmount = false; // User doesn't specify an amount
     
     // Create and send the transaction
     CReserveKey reservekey(pwallet);
@@ -548,7 +548,7 @@ static CTransactionRef CreateNewAsset(CWallet * const pwallet, const CTxDestinat
     CRecipient recipient = {scriptPubKey, 0, fSubtractFeeFromAmount};
     vecSend.push_back(recipient);
     
-    CTransactionAttributes attr = CTransactionAttributes(CTransactionTypes::CREATE_COIN, symbol);
+    CTransactionAttributes attr = CTransactionAttributes(CTransactionTypes::CREATE_COIN, fromAccount, totalSupply, symbol);
     
     CTransactionRef tx;
     if (!pwallet->CreateTransaction(vecSend, tx, reservekey, nFeeRequired, nChangePosRet, strError, coin_control, CTransactionTypes::CREATE_COIN, attr)) {
@@ -747,7 +747,7 @@ UniValue createasset(const JSONRPCRequest& request)
 
     if (request.fHelp || request.params.size() < 3 || request.params.size() > 5)
         throw std::runtime_error(
-            "sendtoaddress \"address\" amount ( \"comment\" \"comment_to\" subtractfeefromamount replaceable conf_target \"estimate_mode\")\n"
+            "createasset \"address\",\"total_supply\",\"symbol\",\"comment\"\n"
             "\nSend an amount to a given address.\n"
             + HelpRequiringPassphrase(pwallet) +
             "\nArguments:\n"
@@ -775,14 +775,15 @@ UniValue createasset(const JSONRPCRequest& request)
     if (!IsValidDestination(dest)) {
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid address");
     }
-    std::string symbol = request.params[1].get_str();
-    if (symbol.empty())
-        throw JSONRPCError(RPC_TYPE_ERROR, "Invalid symbol for asset");
     
     // Amount
-    CAmount assetTotalSupply = AssetSupplyFromValue(request.params[2]);
+    CAmount assetTotalSupply = AssetSupplyFromValue(request.params[1]);
     if (assetTotalSupply <= 0)
         throw JSONRPCError(RPC_TYPE_ERROR, "Invalid total supply of coin");
+
+    std::string symbol = request.params[2].get_str();
+    if (symbol.empty())
+        throw JSONRPCError(RPC_TYPE_ERROR, "Invalid symbol for asset");
 
     // Wallet comments
     mapValue_t mapValue;
@@ -4432,17 +4433,6 @@ static const CRPCCommand commands[] =
     { "wallet",             "walletpassphrase",                 &walletpassphrase,              {"passphrase","timeout"} },
     { "wallet",             "removeprunedfunds",                &removeprunedfunds,             {"txid"} },
     { "wallet",             "rescanblockchain",                 &rescanblockchain,              {"start_height", "stop_height"} },
-
-    /** Account functions (deprecated) */
-    { "wallet",             "getaccountaddress",                &getlabeladdress,               {"account"} },
-    { "wallet",             "getaccount",                       &getaccount,                    {"address"} },
-    { "wallet",             "getaddressesbyaccount",            &getaddressesbyaccount,         {"account"} },
-    { "wallet",             "getreceivedbyaccount",             &getreceivedbylabel,            {"account","minconf"} },
-    { "wallet",             "listaccounts",                     &listaccounts,                  {"minconf","include_watchonly"} },
-    { "wallet",             "listreceivedbyaccount",            &listreceivedbylabel,           {"minconf","include_empty","include_watchonly"} },
-    { "wallet",             "setaccount",                       &setlabel,                      {"address","account"} },
-    { "wallet",             "move",                             &movecmd,                       {"fromaccount","toaccount","amount","minconf","comment"} },
-
     /** Label functions (to replace non-balance account functions) */
     { "wallet",             "getlabeladdress",                  &getlabeladdress,               {"label","force"} },
     { "wallet",             "getaddressesbylabel",              &getaddressesbylabel,           {"label"} },

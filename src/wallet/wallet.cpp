@@ -1338,7 +1338,7 @@ isminetype CWallet::IsMine(const CTxOut& txout) const
 CAmount CWallet::GetCredit(const CTxOut& txout, const isminefilter& filter) const
 {
     if (!MoneyRange(txout.nValue))
-        throw std::runtime_error(std::string(__func__) + ": value out of range");
+        throw std::runtime_error(std::string(__func__) + ": value out of range: " + std::to_string(txout.nValue));
     return ((IsMine(txout) & filter) ? txout.nValue : 0);
 }
 
@@ -1424,7 +1424,7 @@ CAmount CWallet::GetCredit(const CTransaction& tx, const isminefilter& filter) c
     {
         nCredit += GetCredit(txout, filter);
         if (!MoneyRange(nCredit))
-            throw std::runtime_error(std::string(__func__) + ": value out of range");
+            throw std::runtime_error(std::string(__func__) + ": value out of range" + std::to_string(nCredit));
     }
     return nCredit;
 }
@@ -2718,7 +2718,7 @@ bool CWallet::CreateTransaction(const std::vector<CRecipient>& vecSend, CTransac
     CMutableTransaction txNew;
     
     txNew.type = type;
-
+    txNew.attr = attr;
     // Discourage fee sniping.
     //
     // For a large miner the value of the transactions in the best block and
@@ -2908,6 +2908,27 @@ bool CWallet::CreateTransaction(const std::vector<CRecipient>& vecSend, CTransac
                     }
                 } else {
                     nChangePosInOut = -1;
+                }
+                
+                int nNewAssetPosInOut = -1;
+                
+                if (txNew.type == CTransactionTypes::CREATE_COIN){
+                    CTxOut newAssetTxOut(attr.assetTotalSupply, scriptChange, attr.assetType);
+
+                    if (nNewAssetPosInOut == -1)
+                    {
+                        // Insert change txn at random position:
+                        nNewAssetPosInOut = GetRandInt(txNew.vout.size()+1);
+                    }
+                    else if ((unsigned int)nNewAssetPosInOut > txNew.vout.size())
+                    {
+                        strFailReason = _("Change index out of range");
+                        return false;
+                    }
+
+                    std::vector<CTxOut>::iterator position = txNew.vout.begin()+nNewAssetPosInOut;
+                    txNew.vout.insert(position, newAssetTxOut);
+                    
                 }
 
                 // Dummy fill vin for maximum size estimation
