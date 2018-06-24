@@ -3515,6 +3515,12 @@ bool ProcessNewBlock(const CChainParams& chainparams, const std::shared_ptr<cons
 
     NotifyHeaderTip();
 
+    if(!g_chainstate.LoadBlockIndex(chainparams.GetConsensus(),*pblocktree))
+        return false;
+
+    if(!pblocktree->WriteVoteCount(pblock.get()))
+        return error("%s: WriteVoteCount failed (%s)", __func__);
+
     CValidationState state; // Only used to report errors, not invalidity - ignore it
     if (!g_chainstate.ActivateBestChain(state, chainparams, pblock))
         return error("%s: ActivateBestChain failed (%s)", __func__, FormatStateMessage(state));

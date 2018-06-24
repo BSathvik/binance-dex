@@ -17,6 +17,7 @@
 #include <validation.h>
 #include <univalue.h>
 #include <stdint.h>
+#include <uint256.h>
 #include <numeric>
 
 #include <boost/algorithm/string.hpp>
@@ -258,23 +259,39 @@ bool CBlockTreeDB::ReadVoteCount(const std::string addr, int& nVotes) {
 /// TODO: Confirm that the way the read and write methods are called are correct
 /// TODO: Use a batch where appropriate
 /// TODO: Test for edge cases and stuff
-bool CBlockTreeDB::WriteVoteCount(const CBlock& block) {
-  /// CDBBatch batch(*this);
+bool CBlockTreeDB::WriteVoteCount(const CBlock* block) {
 
-  for (std::vector< CTransactionRef >::const_iterator it = (block.vtx).begin(); it != (block.vtx).end(); ++it) {
+  /// Add the coinbase value of each block to the database
+
+  UniValue coinbaseCheckEntry(UniValue::VOBJ);
+  TxToUniv(*(block->vtx.front()), (block->GetBlockHeader()).GetHash(), coinbaseCheckEntry);
+
+  std::string coinbaseAddr = coinbaseCheckEntry["vout"][0]["scriptPubKey"]["addresses"][0].get_str();
+  std::cout << "Received Address to send coinbase to: " << coinbaseAddr << std::endl;
+  uint64_t coinbase = coinbaseCheckEntry["vout"][0]["value"].get_real();
+  std::cout << "Received Coinbase amount: " << coinbase << std::endl;
+
+  int nVoteCoinbase = 0;
+  ReadVoteCount(coinbaseAddr, nVoteCoinbase);
+  if(coinbase > 0) {
+    Write(std::make_pair(DB_VOTE_COUNT, coinbaseAddr), nVoteCoinbase + coinbase);
+  }
+
+  int nBal = 0;
+  /// if the output address to the coinbase transaction is not one of the top 10 then make writevotecount fail
+
+
+  ReadAddrBalance(coinbaseAddr, nBal);
+  WriteAddrBalance(coinbaseAddr, coinbase + nBal);
+
+  for (std::vector< CTransactionRef >::const_iterator it = (block->vtx).begin(); it != (block->vtx).end(); ++it) {
     std::shared_ptr<const CTransaction> currTransaction = *it;
-
-    if (CBlockIndex(block.GetBlockHeader()).nHeight == 0) {
-      UniValue entry(UniValue::VOBJ);
-      TxToUniv(**it, (block.GetBlockHeader()).GetHash(), entry);
-      std::string sAddr = find_value(find_value(entry, "scriptSig"), "asm").getValStr();
-    }
 
     if(currTransaction->type == CTransactionTypes::ENROLL) {
       int nVotes;
 
       UniValue entry(UniValue::VOBJ);
-      TxToUniv(**it, (block.GetBlockHeader()).GetHash(), entry);
+      TxToUniv(**it, (block->GetBlockHeader()).GetHash(), entry);
 
       /**
       * If there is no entry in the database associated to that address, OR
@@ -283,11 +300,13 @@ bool CBlockTreeDB::WriteVoteCount(const CBlock& block) {
       * For addresses that have been enrolled once but have unenrolled
       */
 
-      std::string sAddr = find_value(find_value(entry, "scriptSig"), "asm").getValStr();
-
+      std::string sAddr = entry["vin"][0]["scriptSig"]["asm"].get_str();
+      std::cout << "Retrieved Address: " << sAddr << std::endl;
 
       if(!ReadVoteCount(sAddr, nVotes) || nVotes==-1) {
+
         Write(std::make_pair(DB_VOTE_COUNT, sAddr), 0);
+
       } else {
 
         Write(std::make_pair(DB_VOTE_COUNT, sAddr), -1);
@@ -296,8 +315,10 @@ bool CBlockTreeDB::WriteVoteCount(const CBlock& block) {
         int nAmount;
 
         if(!ReadAddrBalance(sAddr, nAmount)) {
+
           WriteAddrBalance(sAddr, 0);
           nAmount = 0;
+
         } else {
 
           std::vector<std::string> votingFor;
@@ -365,7 +386,7 @@ bool CBlockTreeDB::WriteVoteCount(const CBlock& block) {
     } else if (currTransaction->type == CTransactionTypes::VOTE) {
 
       UniValue entry(UniValue::VOBJ);
-      TxToUniv(**it, (block.GetBlockHeader()).GetHash(), entry);
+      TxToUniv(**it, (block->GetBlockHeader()).GetHash(), entry);
 
       /**
       * Get both addresses, if the address has been voted for,
@@ -373,16 +394,18 @@ bool CBlockTreeDB::WriteVoteCount(const CBlock& block) {
       * If the address has not been voted for, add it to the list and update the votes
       */
 
-      std::string inputAddr = find_value(find_value(entry, "scriptSig"), "asm").getValStr();
+      std::string inputAddr = entry["vin"][0]["scriptSig"]["asm"].get_str();
+      std::cout << "Received input address: " << inputAddr << std::endl;
       std::string outputAddr;
-      std::vector<UniValue> voutAddresses = find_value(find_value(entry, "scriptPubKey"), "addresses").getValues();
+      std::vector<UniValue> voutAddresses = entry["vout"][0]["scriptPubKey"]["addresses"].getValues();
+      std::cout << "Received vout Addresses, here is the first: " << voutAddresses[0].get_str() << std::endl;
       if (voutAddresses.size() != 2)
         continue; /// Skip over this transaction, do not add because bad
 
       /// TODO: Make sure that this is the correct way to get the output address, make sure there can only be 2 unique output addresses
-      for(unsigned int i = 0; i < voutAddresses.size(); i++)
-        if(voutAddresses[i].getValStr() != inputAddr)
-          outputAddr = voutAddresses[i].getValStr();
+      for (unsigned int i = 0; i < voutAddresses.size(); i++)
+        if (voutAddresses[i].get_str() != inputAddr)
+          outputAddr = voutAddresses[i].get_str();
 
       std::vector<std::string> otherEnrolled;
 
@@ -391,7 +414,7 @@ bool CBlockTreeDB::WriteVoteCount(const CBlock& block) {
       WriteAddrBalance(inputAddr, nAmount);
 
       /// If the key isn't found / they've never voted
-      if(!ReadAddrCandidates(inputAddr, otherEnrolled)) {
+      if (!ReadAddrCandidates(inputAddr, otherEnrolled)) {
         otherEnrolled.insert(otherEnrolled.end(), outputAddr);
         WriteAddrCandidates(inputAddr, otherEnrolled);
 
@@ -408,7 +431,7 @@ bool CBlockTreeDB::WriteVoteCount(const CBlock& block) {
       } else {
         /// If the key is found
         /// If it is found in this candidates' readaddrcandidates then unvote, otherwise vote
-        if(std::find(otherEnrolled.begin(), otherEnrolled.end(), outputAddr) != otherEnrolled.end()) {
+        if (std::find(otherEnrolled.begin(), otherEnrolled.end(), outputAddr) != otherEnrolled.end()) {
           /// Unvote (this address is un-voting and not voting)
 
           /// Erase from this voters' DB_ADDR_CANDIDATES list
@@ -481,10 +504,10 @@ bool CBlockTreeDB::WriteVoteCount(const CBlock& block) {
 
       }
 
-    } else if (currTransaction->type == CTransactionTypes::VALUE) {
+    } else if (currTransaction->type == CTransactionTypes::VALUE && !(**it).IsCoinBase()) {
 
       UniValue entry(UniValue::VOBJ);
-      TxToUniv(**it, (block.GetBlockHeader()).GetHash(), entry);
+      TxToUniv(**it, (block->GetBlockHeader()).GetHash(), entry);
 
       /**
       * Subtract from inputAddr's candidates the value of the transaction / the amount of other enrolled addresses
@@ -492,7 +515,8 @@ bool CBlockTreeDB::WriteVoteCount(const CBlock& block) {
       * Update each balance accordingly
       */
 
-      std::string inputAddr = find_value(find_value(entry, "scriptSig"), "asm").getValStr();
+      std::string inputAddr = entry["vin"][0]["scriptSig"]["asm"].get_str();
+      std::cout << "Received input address for value type: " << inputAddr << std::endl;
       std::vector<std::string> inputCandidates;
 
       std::vector<std::string> outputAddrs;
@@ -501,31 +525,34 @@ bool CBlockTreeDB::WriteVoteCount(const CBlock& block) {
       std::vector<UniValue> voutAddresses;
 
       /// Find the vout value, get all vouts
-      std::vector<UniValue> voutObjects = find_value(entry, "vout").getValues();
+      /// std::vector<UniValue> voutObjects = find_value(entry, "vout").getValues();
+      std::vector<UniValue> voutObjects = entry["vout"].getValues();
+      std::cout << "Received vout objects, size: " << voutObjects.size() << std::endl;
 
       /// Support for one to many, TODO: need to check that this is the right way to get the addresses meant for vouts
 
       for (unsigned int j = 0; j < voutObjects.size(); j++) {
 
-        voutAddresses = find_value(voutObjects[j], "addresses").getValues();
+        voutAddresses = voutObjects[j]["scriptPubKey"]["addresses"].getValues();
 
-        for (unsigned int i = 0; i < voutAddresses[i].size(); i++)
-          if (voutAddresses[i].getValStr() != inputAddr) {
-            outputBalances.insert(outputBalances.end(), strtof(find_value(voutObjects[j], "value").getValStr().c_str(), 0));
-            outputAddrs.insert(outputAddrs.end(), voutAddresses[i].getValStr());
+        for (unsigned int i = 0; i < voutAddresses[i].size(); i++) {
+          if (voutAddresses[i].get_str() != inputAddr) {
+            outputBalances.insert(outputBalances.end(), strtof(voutObjects[j]["value"].get_str().c_str(), 0));
+            std::cout << "Inserting output balance: " << voutObjects[j]["value"].get_str() << std::endl;
+            outputAddrs.insert(outputAddrs.end(), voutAddresses[i].get_str());
           }
+        }
       }
 
+      float totalOutput = 0;
+      totalOutput = std::accumulate(outputBalances.begin(), outputBalances.end(), 0.0f);
       /// First subtract from inputCandidates' candidate's vote balances
       /// If you can read the input address and find candidates (AKA they have voted for nodes)
       if(ReadAddrCandidates(inputAddr, inputCandidates)) {
-        float totalOutput;
-        totalOutput = std::accumulate(outputBalances.begin(), outputBalances.end(), 0.0f);
         for(std::vector<std::string>::const_iterator ii = inputCandidates.begin(); ii != inputCandidates.end(); ++ii) {
 
           std::string candidateAddr = *ii;
           int nVotes = 0;
-
 
           /// If there is a vote count for this candidate then subtract from their balance the amount in the transaction'
           /// divided by the amount of candidates they are voting for (since the vote is split)
@@ -549,7 +576,15 @@ bool CBlockTreeDB::WriteVoteCount(const CBlock& block) {
         ReadVoteCount(outputAddrs[i], nVotes);
         Write(std::make_pair(DB_VOTE_COUNT, outputAddrs[i]), (uint64_t) (nVotes + outputBalances[i]/inputCandidates.size()));
 
+        // now add to their balances
+        int nBalance = 0;
+        ReadAddrBalance(outputAddrs[i], nBalance);
+        Write(std::make_pair(DB_ADDR_BAL, outputAddrs[i]), (uint64_t) (nBalance + outputBalances[i]));
       }
+
+      int nBalance = 0;
+      ReadAddrBalance(inputAddr, nBalance);
+      Write(std::make_pair(DB_ADDR_BAL, nBalance), (uint64_t) (nBalance - totalOutput));
 
     }
 
