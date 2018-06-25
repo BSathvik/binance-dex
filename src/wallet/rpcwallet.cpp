@@ -675,7 +675,7 @@ UniValue sendtoaddress(const JSONRPCRequest& request)
             "\nResult:\n"
             "\"txid\"                  (string) The transaction id.\n"
             "\nExamples:\n"
-            + HelpExampleCli("sendtoaddress", "\"1M72Sfpbz1BPpXFHz9m3CdqATR44Jvaydd\" 0.1 \"1M72Sfpbz1BPpXFHz9m3CdqATR44Jvaydd\")
+            + HelpExampleCli("sendtoaddress", "\"1M72Sfpbz1BPpXFHz9m3CdqATR44Jvaydd\" 0.1 \"1M72Sfpbz1BPpXFHz9m3CdqATR44Jvaydd\"")
             + HelpExampleCli("sendtoaddress", "\"1M72Sfpbz1BPpXFHz9m3CdqATR44Jvaydd\" 0.1 \"1M72Sfpbz1BPpXFHz9m3CdqATR44Jvaydd\" \"donation\" \"seans outpost\"")
         );
 
@@ -791,6 +791,7 @@ UniValue createasset(const JSONRPCRequest& request)
         mapValue["comment"] = request.params[3].get_str();
 
     CCoinControl coin_control;
+    coin_control.destChange = dest;
     coin_control.m_signal_bip125_rbf = false; // Replacable ? Nope
     
     EnsureWalletIsUnlocked(pwallet);
