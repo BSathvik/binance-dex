@@ -447,7 +447,7 @@ UniValue getaddressesbyaccount(const JSONRPCRequest& request)
     return ret;
 }
 
-static CTransactionRef SendMoney(CWallet * const pwallet, const CTxDestination &address, CAmount nValue, bool fSubtractFeeFromAmount, const CCoinControl& coin_control, mapValue_t mapValue, std::string fromAccount)
+static CTransactionRef SendMoney(CWallet * const pwallet, const CTxDestination &address, const CAssetType &asseType ,CAmount nValue, bool fSubtractFeeFromAmount, const CCoinControl& coin_control, mapValue_t mapValue, std::string fromAccount)
 {
     CAmount curBalance = pwallet->GetBalance();
 
@@ -650,16 +650,15 @@ UniValue sendtoaddress(const JSONRPCRequest& request)
     if (!EnsureWalletIsAvailable(pwallet, request.fHelp)) {
         return NullUniValue;
     }
-
     if (request.fHelp || request.params.size() < 3 || request.params.size() > 9)
         throw std::runtime_error(
-            "sendtoaddress \"address\" amount ( \"comment\" \"comment_to\" subtractfeefromamount replaceable conf_target \"estimate_mode\")\n"
+            "sendtoaddress \"address\" amount \"asset_type\" ( \"comment\" \"comment_to\" subtractfeefromamount replaceable conf_target \"estimate_mode\")\n"
             "\nSend an amount to a given address.\n"
             + HelpRequiringPassphrase(pwallet) +
             "\nArguments:\n"
             "1. \"address\"            (string, required) The bitcoin address to send to.\n"
-            "2. \"asset_type\"          (string, required) The asset type to send to.\n"
-            "3. \"amount\"             (numeric or string, required) The amount in " + CURRENCY_UNIT + " to send. eg 0.1\n"
+            "2. \"amount\"             (numeric or string, required) The amount in " + CURRENCY_UNIT + " to send. eg 0.1\n"
+            "3. \"asset_type\"         (string, required) The asset type to send to.\n"
             "4. \"comment\"            (string, optional) A comment used to store what the transaction is for. \n"
             "                             This is not part of the transaction, just kept in your wallet.\n"
             "5. \"comment_to\"         (string, optional) A comment to store the name of the person or organization \n"
@@ -676,10 +675,8 @@ UniValue sendtoaddress(const JSONRPCRequest& request)
             "\nResult:\n"
             "\"txid\"                  (string) The transaction id.\n"
             "\nExamples:\n"
-            + HelpExampleCli("sendtoaddress", "\"1M72Sfpbz1BPpXFHz9m3CdqATR44Jvaydd\" 0.1")
-            + HelpExampleCli("sendtoaddress", "\"1M72Sfpbz1BPpXFHz9m3CdqATR44Jvaydd\" 0.1 \"donation\" \"seans outpost\"")
-            + HelpExampleCli("sendtoaddress", "\"1M72Sfpbz1BPpXFHz9m3CdqATR44Jvaydd\" 0.1 \"\" \"\" true")
-            + HelpExampleRpc("sendtoaddress", "\"1M72Sfpbz1BPpXFHz9m3CdqATR44Jvaydd\", 0.1, \"donation\", \"seans outpost\"")
+            + HelpExampleCli("sendtoaddress", "\"1M72Sfpbz1BPpXFHz9m3CdqATR44Jvaydd\" 0.1 \"1M72Sfpbz1BPpXFHz9m3CdqATR44Jvaydd\")
+            + HelpExampleCli("sendtoaddress", "\"1M72Sfpbz1BPpXFHz9m3CdqATR44Jvaydd\" 0.1 \"1M72Sfpbz1BPpXFHz9m3CdqATR44Jvaydd\" \"donation\" \"seans outpost\"")
         );
 
     // Make sure the results are valid at least up to the most recent block
@@ -688,25 +685,28 @@ UniValue sendtoaddress(const JSONRPCRequest& request)
 
     LOCK2(cs_main, pwallet->cs_wallet);
 
+    //throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Here");
+    
     CTxDestination dest = DecodeDestination(request.params[0].get_str());
     if (!IsValidDestination(dest)) {
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid address");
     }
 
-    // Asset Type
-    CTxDestination assetType = DecodeDestination(request.params[1].get_str());
-    if (!IsValidDestination(dest)) // Currently a Valid Destination is possibly a valid assetType.
-        throw JSONRPCError(RPC_TYPE_ERROR, "Invalid amount for send");
-
     // Amount
-    CAmount nAmount = AmountFromValue(request.params[2]);
+    CAmount nAmount = AmountFromValue(request.params[1]);
     if (nAmount <= 0)
         throw JSONRPCError(RPC_TYPE_ERROR, "Invalid amount for send");
 
+    //Asset Type
+    CTxDestination assetType = DecodeDestination(request.params[2].get_str());
+    if (!IsValidDestination(assetType)){ // Currently a Valid Destination is possibly a valid assetType.
+        throw JSONRPCError(RPC_TYPE_ERROR, "Invalid amount for send");
+    }
+        
     // Wallet comments
     mapValue_t mapValue;
     if (!request.params[3].isNull() && !request.params[3].get_str().empty())
-        mapValue["comment"] = request.params[2].get_str();
+        mapValue["comment"] = request.params[3].get_str();
     if (!request.params[4].isNull() && !request.params[4].get_str().empty())
         mapValue["to"] = request.params[4].get_str();
 
@@ -733,7 +733,7 @@ UniValue sendtoaddress(const JSONRPCRequest& request)
 
     EnsureWalletIsUnlocked(pwallet);
 
-    CTransactionRef tx = SendMoney(pwallet, dest, nAmount, fSubtractFeeFromAmount, coin_control, std::move(mapValue), {} /* fromAccount */);
+    CTransactionRef tx = SendMoney(pwallet, dest, request.params[2].get_str(), nAmount, fSubtractFeeFromAmount, coin_control, std::move(mapValue), {} /* fromAccount */);
     return tx->GetHash().GetHex();
 }
 
@@ -1285,79 +1285,6 @@ UniValue movecmd(const JSONRPCRequest& request)
     }
 
     return true;
-}
-
-
-UniValue sendfrom(const JSONRPCRequest& request)
-{
-    CWallet * const pwallet = GetWalletForJSONRPCRequest(request);
-    if (!EnsureWalletIsAvailable(pwallet, request.fHelp)) {
-        return NullUniValue;
-    }
-
-    if (request.fHelp || request.params.size() < 3 || request.params.size() > 6)
-        throw std::runtime_error(
-            "sendfrom \"fromaccount\" \"toaddress\" amount ( minconf \"comment\" \"comment_to\" )\n"
-            "\nDEPRECATED (use sendtoaddress). Sent an amount from an account to a bitcoin address."
-            + HelpRequiringPassphrase(pwallet) + "\n"
-            "\nArguments:\n"
-            "1. \"fromaccount\"       (string, required) The name of the account to send funds from. May be the default account using \"\".\n"
-            "                       Specifying an account does not influence coin selection, but it does associate the newly created\n"
-            "                       transaction with the account, so the account's balance computation and transaction history can reflect\n"
-            "                       the spend.\n"
-            "2. \"toaddress\"         (string, required) The bitcoin address to send funds to.\n"
-            "3. amount                (numeric or string, required) The amount in " + CURRENCY_UNIT + " (transaction fee is added on top).\n"
-            "4. minconf               (numeric, optional, default=1) Only use funds with at least this many confirmations.\n"
-            "5. \"comment\"           (string, optional) A comment used to store what the transaction is for. \n"
-            "                                     This is not part of the transaction, just kept in your wallet.\n"
-            "6. \"comment_to\"        (string, optional) An optional comment to store the name of the person or organization \n"
-            "                                     to which you're sending the transaction. This is not part of the transaction, \n"
-            "                                     it is just kept in your wallet.\n"
-            "\nResult:\n"
-            "\"txid\"                 (string) The transaction id.\n"
-            "\nExamples:\n"
-            "\nSend 0.01 " + CURRENCY_UNIT + " from the default account to the address, must have at least 1 confirmation\n"
-            + HelpExampleCli("sendfrom", "\"\" \"1M72Sfpbz1BPpXFHz9m3CdqATR44Jvaydd\" 0.01") +
-            "\nSend 0.01 from the tabby account to the given address, funds must have at least 6 confirmations\n"
-            + HelpExampleCli("sendfrom", "\"tabby\" \"1M72Sfpbz1BPpXFHz9m3CdqATR44Jvaydd\" 0.01 6 \"donation\" \"seans outpost\"") +
-            "\nAs a json rpc call\n"
-            + HelpExampleRpc("sendfrom", "\"tabby\", \"1M72Sfpbz1BPpXFHz9m3CdqATR44Jvaydd\", 0.01, 6, \"donation\", \"seans outpost\"")
-        );
-
-    // Make sure the results are valid at least up to the most recent block
-    // the user could have gotten from another RPC command prior to now
-    pwallet->BlockUntilSyncedToCurrentChain();
-
-    LOCK2(cs_main, pwallet->cs_wallet);
-
-    std::string strAccount = LabelFromValue(request.params[0]);
-    CTxDestination dest = DecodeDestination(request.params[1].get_str());
-    if (!IsValidDestination(dest)) {
-        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid Bitcoin address");
-    }
-    CAmount nAmount = AmountFromValue(request.params[2]);
-    if (nAmount <= 0)
-        throw JSONRPCError(RPC_TYPE_ERROR, "Invalid amount for send");
-    int nMinDepth = 1;
-    if (!request.params[3].isNull())
-        nMinDepth = request.params[3].get_int();
-
-    mapValue_t mapValue;
-    if (!request.params[4].isNull() && !request.params[4].get_str().empty())
-        mapValue["comment"] = request.params[4].get_str();
-    if (!request.params[5].isNull() && !request.params[5].get_str().empty())
-        mapValue["to"] = request.params[5].get_str();
-
-    EnsureWalletIsUnlocked(pwallet);
-
-    // Check funds
-    CAmount nBalance = pwallet->GetLegacyBalance(ISMINE_SPENDABLE, nMinDepth, &strAccount);
-    if (nAmount > nBalance)
-        throw JSONRPCError(RPC_WALLET_INSUFFICIENT_FUNDS, "Account has insufficient funds");
-
-    CCoinControl no_coin_control; // This is a deprecated API
-    CTransactionRef tx = SendMoney(pwallet, dest, nAmount, false, no_coin_control, std::move(mapValue), std::move(strAccount));
-    return tx->GetHash().GetHex();
 }
 
 
@@ -4421,9 +4348,8 @@ static const CRPCCommand commands[] =
     { "wallet",             "listunspent",                      &listunspent,                   {"minconf","maxconf","addresses","include_unsafe","query_options"} },
     { "wallet",             "listwallets",                      &listwallets,                   {} },
     { "wallet",             "lockunspent",                      &lockunspent,                   {"unlock","transactions"} },
-    { "wallet",             "sendfrom",                         &sendfrom,                      {"fromaccount","toaddress","amount","minconf","comment","comment_to"} },
     { "wallet",             "sendmany",                         &sendmany,                      {"fromaccount|dummy","amounts","minconf","comment","subtractfeefrom","replaceable","conf_target","estimate_mode"} },
-    { "wallet",             "sendtoaddress",                    &sendtoaddress,                 {"address","amount","comment","comment_to","subtractfeefromamount","replaceable","conf_target","estimate_mode"} },
+    { "wallet",             "sendtoaddress",                    &sendtoaddress,                 {"address","amount","asset_type","comment","comment_to","subtractfeefromamount","replaceable","conf_target","estimate_mode"} },
     { "wallet",             "voteonaddress",                    &voteonaddress,                 {"address","comment","comment_to","replaceable","conf_target","estimate_mode"} },
     { "wallet",             "settxfee",                         &settxfee,                      {"amount"} },
     { "wallet",             "signmessage",                      &signmessage,                   {"address","message"} },

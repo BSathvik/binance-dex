@@ -156,7 +156,6 @@ struct CRecipient
 {
     CScript scriptPubKey;
     CAmount nAmount;
-    CAssetType assetType;
     bool fSubtractFeeFromAmount;
 };
 
