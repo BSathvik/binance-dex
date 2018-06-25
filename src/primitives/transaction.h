@@ -15,7 +15,10 @@
 static const int SERIALIZE_TRANSACTION_NO_WITNESS = 0x40000000;
 
 typedef uint32_t CTransactionType;
-typedef uint64_t CAssetType;
+typedef std::string CAssetType;
+typedef std::string CAssetSymbol;
+
+static const CAssetType NATIVE_ASSET = "0x1";
 
 struct CTransactionTypes{
     
@@ -152,7 +155,7 @@ public:
         SetNull();
     }
 
-    CTxOut(const CAmount& nValueIn, CScript scriptPubKeyIn);
+    CTxOut(const CAmount& nValueIn, CScript scriptPubKeyIn, CAssetType assetTypeIn = NATIVE_ASSET);
 
     ADD_SERIALIZE_METHODS;
 
@@ -193,11 +196,17 @@ class CTransactionAttributes
 {
 public:
     CTransactionType type;
-    std::string assetSymbol;
+    
+    // CREATE_COIN
+    // This is currently a bitcoin address thats sending the transaction fee and receiving the new asset.
+    // They fromAddress has to be the same as destination address, so no opportunity for race conditions.
+    CAssetType assetType;
+    CAssetSymbol assetSymbol;
+    CAmount assetTotalSupply;
     
     CTransactionAttributes();
     CTransactionAttributes(CTransactionType txType);
-    CTransactionAttributes(CTransactionType txType, std::string assetSymbol);
+    CTransactionAttributes(CTransactionType txType, CAssetType assetType, CAmount assetTotalSupply, std::string assetSymbol);
     
     ADD_SERIALIZE_METHODS;
     
@@ -206,7 +215,9 @@ public:
         READWRITE(type);
         
         if (type == CTransactionTypes::CREATE_COIN){
-            READWRITE(type);
+            READWRITE(assetType);
+            READWRITE(assetTotalSupply);
+            READWRITE(assetSymbol);
         }
     }
     
@@ -329,8 +340,6 @@ public:
     // bumping the default CURRENT_VERSION at which point both CURRENT_VERSION and
     // MAX_STANDARD_VERSION will be equal.
     static const int32_t MAX_STANDARD_VERSION=2;
-    
-    static const uint64_t NATIVE_ASSET=0x1;
     
     // The local variables are made const to prevent unintended modification
     // without updating the cached hash value. However, CTransaction is not

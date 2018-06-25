@@ -298,6 +298,8 @@ public:
      *                         2014 (removed in commit 93a18a3)
      */
     mapValue_t mapValue;
+    CTransactionType type;
+    CAssetType assetType;
     std::vector<std::pair<std::string, std::string> > vOrderForm;
     unsigned int fTimeReceivedIsTxTime;
     unsigned int nTimeReceived; //!< time received by this node
@@ -350,6 +352,8 @@ public:
     {
         pwallet = pwalletIn;
         mapValue.clear();
+        assetType = NATIVE_ASSET;
+        type = CTransactionTypes::VALUE;
         vOrderForm.clear();
         fTimeReceivedIsTxTime = false;
         nTimeReceived = 0;
