@@ -156,12 +156,13 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
     coinbaseTx.vout.resize(1);
     coinbaseTx.vout[0].scriptPubKey = scriptPubKeyIn;
     coinbaseTx.vout[0].nValue = nHeight == 1 ? nFees + chainparams.GetConsensus().TotalSupply * COIN : nFees;
+    coinbaseTx.vout[0].assetType = NATIVE_ASSET;
     coinbaseTx.vin[0].scriptSig = CScript() << nHeight << OP_0;
     pblock->vtx[0] = MakeTransactionRef(std::move(coinbaseTx));
     pblocktemplate->vchCoinbaseCommitment = GenerateCoinbaseCommitment(*pblock, pindexPrev, chainparams.GetConsensus());
     pblocktemplate->vTxFees[0] = -nFees;
 
-    LogPrintf("CreateNewBlock(): block weight: %u txs: %u fees: %ld sigops %d\n", GetBlockWeight(*pblock), nBlockTx, nFees, nBlockSigOpsCost);
+    LogPrintf("CreateNewBlock(): block weight: %u txs: %u fees: %ld sigops %d  vouts: %s\n", GetBlockWeight(*pblock), nBlockTx, nFees, nBlockSigOpsCost, std::to_string(coinbaseTx.vout.size()));
 
     // Fill in header
     pblock->hashPrevBlock  = pindexPrev->GetBlockHash();

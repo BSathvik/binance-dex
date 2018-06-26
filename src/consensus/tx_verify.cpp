@@ -212,35 +212,74 @@ bool Consensus::CheckTxInputs(const CTransaction& tx, CValidationState& state, c
         return state.DoS(100, false, REJECT_INVALID, "bad-txns-inputs-missingorspent", false,
                          strprintf("%s: inputs missing/spent", __func__));
     }
-
-    CAmount nValueIn = 0;
+    
+    std::map<CAssetType, CAmount> nValuesIn;
+    CAmount nNativeValueIn = 0;
+     
+    CAmount nTotalValueIn = 0;
     for (unsigned int i = 0; i < tx.vin.size(); ++i) {
         const COutPoint &prevout = tx.vin[i].prevout;
         const Coin& coin = inputs.AccessCoin(prevout);
         assert(!coin.IsSpent());
-
+        
         // If prev is coinbase, check that it's matured
         if (coin.IsCoinBase() && nSpendHeight - coin.nHeight < COINBASE_MATURITY) {
             return state.Invalid(false,
                 REJECT_INVALID, "bad-txns-premature-spend-of-coinbase",
                 strprintf("tried to spend coinbase at depth %d", nSpendHeight - coin.nHeight));
         }
-
+        
+        nValuesIn[coin.out.assetType] = nValuesIn.find(coin.out.assetType) != nValuesIn.end() ? nValuesIn[coin.out.assetType] + coin.out.nValue : coin.out.nValue;
+        
         // Check for negative or overflow input values
-        nValueIn += coin.out.nValue;
-        if (!MoneyRange(coin.out.nValue) || !MoneyRange(nValueIn)) {
+        nTotalValueIn += coin.out.nValue;
+        
+        if (coin.out.assetType == NATIVE_ASSET)
+            nNativeValueIn += coin.out.nValue;
+        
+        if (!MoneyRange(coin.out.nValue) || !MoneyRange(nValuesIn[coin.out.assetType]) || !MoneyRange(nTotalValueIn)) {
             return state.DoS(100, false, REJECT_INVALID, "bad-txns-inputvalues-outofrange");
         }
     }
-
-    const CAmount value_out = tx.GetValueOut();
-    if (nValueIn < value_out) {
-        return state.DoS(100, false, REJECT_INVALID, "bad-txns-in-belowout", false,
-            strprintf("value in (%s) < value out (%s)", FormatMoney(nValueIn), FormatMoney(value_out)));
+    
+    CTransactionAttributes attr = tx.attr;
+    
+    std::map<CAssetType, CAmount> nValuesOut;
+    CAmount nTotalValueOut = 0;
+    
+    for (unsigned int i = 0; i < tx.vout.size(); ++i) {
+        const CTxOut out = tx.vout[i];
+        
+        nValuesOut[out.assetType] = nValuesOut.find(out.assetType) != nValuesOut.end() ? nValuesOut[out.assetType] + out.nValue : out.nValue;
+        nTotalValueOut += out.nValue;
+        
+        if (tx.type == CTransactionTypes::CREATE_COIN && nValuesIn.find(out.assetType) == nValuesIn.end() && out.assetType == attr.assetType){
+            if (!MoneyRange(out.nValue) || !MoneyRange(nTotalValueOut)){
+                return state.DoS(100, false, REJECT_INVALID, "bad-txns-outputvalues-outofrange");
+            }
+            continue;
+        }
+        
+        if (nValuesIn.find(out.assetType) == nValuesIn.end()){
+            return state.DoS(100, false, REJECT_INVALID, "bad-txns-out-create-coin", false,
+                strprintf("invalid new asset, the out-tx \"%s\" does not match asset type in tx-attributes \"%s\"", out.assetType, attr.assetType));
+        }
+        
+        if (nValuesIn[out.assetType] < nValuesOut[out.assetType]) {
+            return state.DoS(100, false, REJECT_INVALID, "bad-txns-in-belowout", false,
+                strprintf("value in (%s) < value out (%s)", FormatMoney(nValuesIn[out.assetType]), FormatMoney(nValuesOut[out.assetType])));
+        }
     }
+    
+    const CAmount native_value_out = tx.GetValueOut(); // Native coin
+    
+    // if (nValueIn < value_out && tx.type != CTransactionTypes::CREATE_COIN) {
+    //     return state.DoS(100, false, REJECT_INVALID, "bad-txns-in-belowout", false,
+    //         strprintf("value in (%s) < value out (%s)", FormatMoney(nValueIn), FormatMoney(value_out)));
+    // }
 
     // Tally transaction fees
-    const CAmount txfee_aux = nValueIn - value_out;
+    const CAmount txfee_aux = nNativeValueIn - native_value_out;
     if (!MoneyRange(txfee_aux)) {
         return state.DoS(100, false, REJECT_INVALID, "bad-txns-fee-outofrange");
     }

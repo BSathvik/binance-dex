@@ -99,7 +99,7 @@ bool static IsCompressedPubKey(const valtype &vchPubKey) {
  * Where R and S are not negative (their first byte has its highest bit not set), and not
  * excessively padded (do not start with a 0 byte, unless an otherwise negative number follows,
  * in which case a single 0 byte is necessary and even required).
- * 
+ *
  * See https://bitcointalk.org/index.php?topic=8392.msg127623#msg127623
  *
  * This function is consensus-critical since BIP66.
@@ -895,7 +895,7 @@ bool EvalScript(std::vector<std::vector<unsigned char> >& stack, const CScript& 
                     popstack(stack);
                     stack.push_back(vchHash);
                 }
-                break;                                   
+                break;
 
                 case OP_CODESEPARATOR:
                 {
@@ -1155,7 +1155,6 @@ public:
         // Serialize nVersion
         ::Serialize(s, txTo.nVersion);
         ::Serialize(s, txTo.type);
-        ::Serialize(s, txTo.assetType);
         ::Serialize(s, txTo.attr);
         // Serialize vin
         unsigned int nInputs = fAnyoneCanPay ? 1 : txTo.vin.size();
@@ -1241,8 +1240,6 @@ uint256 SignatureHash(const CScript& scriptCode, const CTransaction& txTo, unsig
         ss << txTo.nVersion;
         // Transaction Type
         ss << txTo.type;
-        // Asset Type
-        ss << txTo.assetType;
         // Attributes
         ss << txTo.attr;
         // Input prevouts/nSequence (none/all, depending on flags)
