@@ -168,7 +168,6 @@ void TxToUniv(const CTransaction& tx, const uint256& hashBlock, UniValue& entry,
     }
     entry.pushKV("attributes", attr);
     entry.pushKV("type", (int64_t)tx.type);
-    entry.pushKV("attributes type", (int64_t)tx.attr.type);
     entry.pushKV("size", (int)::GetSerializeSize(tx, SER_NETWORK, PROTOCOL_VERSION));
     entry.pushKV("vsize", (GetTransactionWeight(tx) + WITNESS_SCALE_FACTOR - 1) / WITNESS_SCALE_FACTOR);
     entry.pushKV("weight", GetTransactionWeight(tx));
@@ -205,7 +204,7 @@ void TxToUniv(const CTransaction& tx, const uint256& hashBlock, UniValue& entry,
         const CTxOut& txout = tx.vout[i];
 
         UniValue out(UniValue::VOBJ);
-        out.pushKV("assetType", tx.type == CTransactionTypes::CREATE_COIN ? tx.attr.assetType: NATIVE_ASSET);
+        out.pushKV("assetType", txout.assetType);
         out.pushKV("value", ValueFromAmount(txout.nValue));
         out.pushKV("n", (int64_t)i);
 

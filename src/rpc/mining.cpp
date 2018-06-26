@@ -121,11 +121,12 @@ UniValue generateBlocks(std::shared_ptr<CReserveScript> coinbaseScript, int nGen
         if (!pblocktemplate.get())
             throw JSONRPCError(RPC_INTERNAL_ERROR, "Couldn't create new block");
         CBlock *pblock = &pblocktemplate->block;
+        LogPrintf("generateBlocks(): the number of vouts at this point is ONE: %s", pblock->ToString());
         {
             LOCK(cs_main);
             IncrementExtraNonce(pblock, chainActive.Tip(), nExtraNonce);
         }
-        
+        LogPrintf("generateBlocks(): the number of vouts at this point is TWO: %s", pblock->ToString());
         pblock->nNonce = 99;
         
         std::shared_ptr<const CBlock> shared_pblock = std::make_shared<const CBlock>(*pblock);

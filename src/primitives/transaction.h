@@ -260,7 +260,6 @@ inline void UnserializeTransaction(TxType& tx, Stream& s) {
 
     s >> tx.nVersion;
     s >> tx.type;
-    s >> tx.assetType;
     s >> tx.attr;
     
     unsigned char flags = 0;
@@ -299,7 +298,6 @@ inline void SerializeTransaction(const TxType& tx, Stream& s) {
 
     s << tx.nVersion;
     s << tx.type;
-    s << tx.assetType;
     s << tx.attr;
     unsigned char flags = 0;
     // Consistency check
@@ -351,7 +349,6 @@ public:
     const int32_t nVersion;
     const uint32_t nLockTime;
     const CTransactionType type;
-    const CAssetType assetType;
     const CTransactionAttributes attr;
 
 private:
@@ -390,7 +387,7 @@ public:
     uint256 GetWitnessHash() const;
 
     // Return sum of txouts.
-    CAmount GetValueOut() const;
+    CAmount GetValueOut(CAssetType assetType = NATIVE_ASSET) const;
     // GetValueIn() is a method on CCoinsViewCache, because
     // inputs must be known to compute value in.
 
@@ -437,7 +434,6 @@ struct CMutableTransaction
     int32_t nVersion;
     uint32_t nLockTime;
     CTransactionType type;
-    CAssetType assetType;
     CTransactionAttributes attr;
     
     CMutableTransaction();
