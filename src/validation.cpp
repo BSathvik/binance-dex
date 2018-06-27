@@ -3,8 +3,6 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include <validation.h>
-
 #include <arith_uint256.h>
 #include <chain.h>
 #include <chainparams.h>
@@ -18,6 +16,7 @@
 #include <hash.h>
 #include <index/txindex.h>
 #include <init.h>
+#include <key_io.h>
 #include <policy/fees.h>
 #include <policy/policy.h>
 #include <policy/rbf.h>
@@ -38,8 +37,10 @@
 #include <util.h>
 #include <utilmoneystr.h>
 #include <utilstrencodings.h>
+#include <validation.h>
 #include <validationinterface.h>
 #include <warnings.h>
+#include <wallet/walletdb.cpp>
 
 #include <future>
 #include <sstream>
@@ -551,7 +552,6 @@ static bool CheckInputsFromMempoolAndCache(const CTransaction& tx, CValidationSt
 
     return CheckInputs(tx, state, view, true, flags, cacheSigStore, true, txdata);
 }
-
 static bool AcceptToMemoryPoolWorker(const CChainParams& chainparams, CTxMemPool& pool, CValidationState& state, const CTransactionRef& ptx,
                               bool* pfMissingInputs, int64_t nAcceptTime, std::list<CTransactionRef>* plTxnReplaced,
                               bool bypass_limits, const CAmount& nAbsurdFee, std::vector<COutPoint>& coins_to_uncache, bool test_accept)
@@ -562,6 +562,17 @@ static bool AcceptToMemoryPoolWorker(const CChainParams& chainparams, CTxMemPool
     LOCK(pool.cs); // mempool "read lock" (held through GetMainSignals().TransactionAddedToMempool())
     if (pfMissingInputs) {
         *pfMissingInputs = false;
+    }
+
+    // Reject vote transactions if is enrolled
+    if(tx.type == CTransactionTypes::VOTE) {
+        CTxDestination ret;
+        std::vector<CTxOut> vouts = tx.vout;
+        for(std::vector<CTxOut>::const_iterator ii = vouts.begin(); ii != vouts.end(); ++ii)
+            if((*ii).nValue == 0)
+                ExtractDestination((*ii).scriptPubKey, ret);
+        if(!(pblocktree->IsEnrolled(EncodeDestination(ret))))
+            return state.Invalid(false, REJECT_INVALID, "address-not-enrolled");
     }
 
     if (!CheckTransaction(tx, state))
@@ -1003,6 +1014,21 @@ static bool AcceptToMemoryPoolWithTime(const CChainParams& chainparams, CTxMemPo
     return res;
 }
 
+static bool AcceptVoteWithTime(const CChainParams& chainparams, const CTransactionRef& ptx) {
+
+    // Reject vote transactions if is enrolled
+    if ((*ptx).type == CTransactionTypes::VOTE) {
+        CTxDestination ret;
+        std::vector<CTxOut> vouts = (*ptx).vout;
+        for (std::vector<CTxOut>::const_iterator ii = vouts.begin(); ii != vouts.end(); ++ii)
+            if ((*ii).nValue == 0)
+                ExtractDestination((*ii).scriptPubKey, ret);
+        if (!(pblocktree->IsEnrolled(EncodeDestination(ret))))
+            return false;
+    }
+    return true;
+}
+
 bool AcceptToMemoryPool(CTxMemPool& pool, CValidationState &state, const CTransactionRef &tx,
                         bool* pfMissingInputs, std::list<CTransactionRef>* plTxnReplaced,
                         bool bypass_limits, const CAmount nAbsurdFee, bool test_accept)
@@ -1011,6 +1037,12 @@ bool AcceptToMemoryPool(CTxMemPool& pool, CValidationState &state, const CTransa
     return AcceptToMemoryPoolWithTime(chainparams, pool, state, tx, pfMissingInputs, GetTime(), plTxnReplaced, bypass_limits, nAbsurdFee, test_accept);
 }
 
+bool AcceptVote(const CTransactionRef& ptx) {
+
+    // Reject vote transactions if is enrolled
+    const CChainParams& chainparams = Params();
+    return AcceptVoteWithTime(chainparams, ptx);
+}
 /**
  * Return transaction in txOut, and if it was found inside a block, its hash is placed in hashBlock.
  * If blockIndex is provided, the transaction is fetched from the corresponding block.
@@ -3083,10 +3115,22 @@ bool CheckBlock(const CBlock& block, CValidationState& state, const Consensus::P
             return state.DoS(100, false, REJECT_INVALID, "bad-cb-multiple", false, "more than one coinbase");
 
     // Check transactions
-    for (const auto& tx : block.vtx)
+    for (const auto& tx : block.vtx) {
         if (!CheckTransaction(*tx, state, false))
             return state.Invalid(false, state.GetRejectCode(), state.GetRejectReason(),
-                                 strprintf("Transaction check failed (tx hash %s) %s", tx->GetHash().ToString(), state.GetDebugMessage()));
+                                 strprintf("Transaction check failed (tx hash %s) %s", tx->GetHash().ToString(),
+                                           state.GetDebugMessage()));
+
+        if((*tx).type == CTransactionTypes::VOTE) {
+            CTxDestination ret;
+            std::vector<CTxOut> vouts = (*tx).vout;
+            for(std::vector<CTxOut>::const_iterator ii = vouts.begin(); ii != vouts.end(); ++ii)
+                if((*ii).nValue == 0)
+                    ExtractDestination((*ii).scriptPubKey, ret);
+            if(!(pblocktree->IsEnrolled(EncodeDestination(ret))))
+                return state.Invalid(false, REJECT_INVALID, "address-not-enrolled");
+        }
+    }
 
     unsigned int nSigOps = 0;
     for (const auto& tx : block.vtx)
@@ -3518,6 +3562,7 @@ bool ProcessNewBlock(const CChainParams& chainparams, const std::shared_ptr<cons
     if(!g_chainstate.LoadBlockIndex(chainparams.GetConsensus(),*pblocktree))
         return false;
 
+    // Take the current block's transactions and write them to LevelDB, computing balances and votes
     if(!pblocktree->WriteVoteCount(pblock.get()))
         return error("%s: WriteVoteCount failed (%s)", __func__);
 

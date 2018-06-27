@@ -12,6 +12,10 @@ After implementing Delegated Proof-of-Stake, the main challenge of this project,
 
 For this reason, we can run an off-chain matching engine within a full node that is able to execute an atomic trade event. 
 
+Design Rationale
+----------------
+For this project we made multiple design decisions in order to improve the performance of the exchange. Our main goal was to have as much throughput as possible, since liquidity is a necessity in any type of exchange. 
+
 Running a node using Docker
 ----------------
 The Dockerfile builds an image with all the dependencies installed on Ubuntu 16.04 LTS.

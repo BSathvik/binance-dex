@@ -124,11 +124,12 @@ public:
     bool ReadFlag(const std::string &name, bool &fValue);
     bool LoadBlockIndexGuts(const Consensus::Params& consensusParams, std::function<CBlockIndex*(const uint256&)> insertBlockIndex);
     bool WriteVoteCount(const CBlock* block);
-    bool ReadVoteCount(const std::string addr, int &nVotes);
+    bool ReadVoteCount(const std::string& addr, int nVotes);
     bool WriteAddrCandidates(const std::string addr, std::vector<std::string> enrolled);
     bool ReadAddrCandidates(const std::string addr, std::vector<std::string> &enrolled);
     bool WriteCandidatesAddr(const std::string addr, std::vector<std::string> voters);
     bool ReadCandidatesAddr(const std::string addr, std::vector<std::string> &voters);
+    bool IsEnrolled(const std::string addr);
     bool WriteAddrBalance(const std::string addr, int nAmount);
     bool ReadAddrBalance(const std::string addr, int &nAmount);
 };

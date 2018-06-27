@@ -242,16 +242,26 @@ bool CBlockTreeDB::ReadCandidatesAddr(const std::string addr, std::vector<std::s
     return true;
 }
 
+bool CBlockTreeDB::IsEnrolled(const std::string addr) {
+  int nVotes = 0;
+  if(!ReadVoteCount(addr, nVotes))
+    return false;
+  std::cout << "ReadVoteCount returns: " << ReadVoteCount(addr, nVotes) << std::endl;
+  return nVotes != -1;
+}
+
 bool CBlockTreeDB::WriteAddrBalance(const std::string addr, int nAmount) {
   return Write(std::make_pair(DB_ADDR_BAL, addr), nAmount);
 }
 
-bool CBlockTreeDB::ReadAddrBalance(const std::string addr, int &nAmount) {
+bool CBlockTreeDB::ReadAddrBalance(const std::string addr, int& nAmount) {
   return Read(std::make_pair(DB_ADDR_BAL, addr), nAmount);
 }
 
-bool CBlockTreeDB::ReadVoteCount(const std::string addr, int& nVotes) {
-  return Read(std::make_pair(DB_VOTE_COUNT, addr), nVotes);
+bool CBlockTreeDB::ReadVoteCount(const std::string& addr, int nVotes) {
+  bool success = Read(std::make_pair(DB_VOTE_COUNT, addr), nVotes);
+  std::cout << "ReadVoteCount nVotes: " << nVotes << std::endl;
+  return success;
 }
 
 /// TODO: Implement diff-wise vote counting at some point.

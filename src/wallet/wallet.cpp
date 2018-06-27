@@ -3149,6 +3149,9 @@ bool CWallet::CommitTransaction(CTransactionRef tx, mapValue_t mapValue, std::ve
 
         if (fBroadcastTransactions)
         {
+            if(!wtx.AcceptVote()) {
+                AbandonTransaction(wtx.GetHash());
+            }
             // Broadcast
             if (!wtx.AcceptToMemoryPool(maxTxFee, state)) {
                 LogPrintf("CommitTransaction(): Transaction cannot be broadcast immediately, %s\n", FormatStateMessage(state));
@@ -4324,6 +4327,10 @@ bool CWalletTx::AcceptToMemoryPool(const CAmount& nAbsurdFee, CValidationState& 
     bool ret = ::AcceptToMemoryPool(mempool, state, tx, nullptr /* pfMissingInputs */,
                                 nullptr /* plTxnReplaced */, false /* bypass_limits */, nAbsurdFee);
     fInMempool |= ret;
+    return ret;
+}
+bool CWalletTx::AcceptVote() {
+    bool ret = ::AcceptVote(tx);
     return ret;
 }
 
