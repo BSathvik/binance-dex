@@ -789,7 +789,7 @@ UniValue createasset(const JSONRPCRequest& request)
 
     // Wallet comments
     mapValue_t mapValue;
-    if (!request.params[2].isNull() && !request.params[3].get_str().empty())
+    if (!request.params[3].isNull() && !request.params[3].get_str().empty())
         mapValue["comment"] = request.params[3].get_str();
 
     CCoinControl coin_control;
