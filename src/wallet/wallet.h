@@ -157,6 +157,10 @@ struct CRecipient
     CScript scriptPubKey;
     CAmount nAmount;
     bool fSubtractFeeFromAmount;
+    CAssetType assetType;
+    
+    CRecipient(CScript scriptPubKey, CAmount nAmount, bool fSubtractFeeFromAmount, CAssetType assetType = NATIVE_ASSET) :
+        scriptPubKey(scriptPubKey), nAmount(nAmount), fSubtractFeeFromAmount(fSubtractFeeFromAmount), assetType(assetType) {}
 };
 
 typedef std::map<std::string, std::string> mapValue_t;
@@ -765,7 +769,7 @@ public:
      * if they are not ours
      */
     bool SelectCoins(const std::vector<COutput>& vAvailableCoins, const CAmount& nTargetValue, std::set<CInputCoin>& setCoinsRet, CAmount& nValueRet,
-                    const CCoinControl& coin_control, CoinSelectionParams& coin_selection_params, bool& bnb_used) const;
+                    const CCoinControl& coin_control, CoinSelectionParams& coin_selection_params, bool& bnb_used, const CAssetType &assetType = NATIVE_ASSET) const;
 
     /** Get a name for this wallet for logging/debugging purposes.
      */
@@ -836,7 +840,7 @@ public:
      * assembled
      */
     bool SelectCoinsMinConf(const CAmount& nTargetValue, const CoinEligibilityFilter& eligibility_filter, std::vector<COutput> vCoins,
-        std::set<CInputCoin>& setCoinsRet, CAmount& nValueRet, const CoinSelectionParams& coin_selection_params, bool& bnb_used) const;
+        std::set<CInputCoin>& setCoinsRet, CAmount& nValueRet, const CoinSelectionParams& coin_selection_params, bool& bnb_used, const CAssetType &assetType = NATIVE_ASSET) const;
 
     bool IsSpent(const uint256& hash, unsigned int n) const;
 
@@ -950,8 +954,8 @@ public:
      * selected by SelectCoins(); Also create the change output, when needed
      * @note passing nChangePosInOut as -1 will result in setting a random position
      */
-    bool CreateTransaction(const std::vector<CRecipient>& vecSend, CTransactionRef& tx, CReserveKey& reservekey, CAmount& nFeeRet, int& nChangePosInOut,
-                           std::string& strFailReason, const CCoinControl& coin_control, CTransactionType type, CTransactionAttributes &attr, bool sign = true);
+    bool CreateTransaction(const std::vector<CRecipient>& vecSend, CTransactionRef& tx, CReserveKey& reservekey, CAmount& nFeeRet, int& nNativeChangePosInOut,
+                           std::string& strFailReason, const CCoinControl& coin_control, CTransactionType type, CTransactionAttributes &attr, const CAssetType &assetType = NATIVE_ASSET, bool sign = true);
     bool CommitTransaction(CTransactionRef tx, mapValue_t mapValue, std::vector<std::pair<std::string, std::string>> orderForm, std::string fromAccount, CReserveKey& reservekey, CConnman* connman, CValidationState& state);
 
     void ListAccountCreditDebit(const std::string& strAccount, std::list<CAccountingEntry>& entries);

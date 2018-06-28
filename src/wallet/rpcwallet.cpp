@@ -447,7 +447,7 @@ UniValue getaddressesbyaccount(const JSONRPCRequest& request)
     return ret;
 }
 
-static CTransactionRef SendMoney(CWallet * const pwallet, const CTxDestination &address, const CAssetType &asseType ,CAmount nValue, bool fSubtractFeeFromAmount, const CCoinControl& coin_control, mapValue_t mapValue, std::string fromAccount)
+static CTransactionRef SendMoney(CWallet * const pwallet, const CTxDestination &address, const CAssetType &assetType ,CAmount nValue, bool fSubtractFeeFromAmount, const CCoinControl& coin_control, mapValue_t mapValue, std::string fromAccount)
 {
     CAmount curBalance = pwallet->GetBalance();
 
@@ -471,13 +471,13 @@ static CTransactionRef SendMoney(CWallet * const pwallet, const CTxDestination &
     std::string strError;
     std::vector<CRecipient> vecSend;
     int nChangePosRet = -1;
-    CRecipient recipient = {scriptPubKey, nValue, fSubtractFeeFromAmount};
+    CRecipient recipient = {scriptPubKey, nValue, fSubtractFeeFromAmount, assetType};
     vecSend.push_back(recipient);
     CTransactionRef tx;
     
     CTransactionAttributes attr = CTransactionAttributes(CTransactionTypes::VALUE);
         
-    if (!pwallet->CreateTransaction(vecSend, tx, reservekey, nFeeRequired, nChangePosRet, strError, coin_control, CTransactionTypes::VALUE, attr)) {
+    if (!pwallet->CreateTransaction(vecSend, tx, reservekey, nFeeRequired, nChangePosRet, strError, coin_control, CTransactionTypes::VALUE, attr, assetType)) {
         if (!fSubtractFeeFromAmount && nValue + nFeeRequired > curBalance)
             strError = strprintf("Error: This transaction requires a transaction fee of at least %s", FormatMoney(nFeeRequired));
         throw JSONRPCError(RPC_WALLET_ERROR, strError);
@@ -545,7 +545,7 @@ static CTransactionRef CreateNewAsset(CWallet * const pwallet, const CTxDestinat
     std::string strError;
     std::vector<CRecipient> vecSend;
     int nChangePosRet = -1;
-    CRecipient recipient = {scriptPubKey, 0, fSubtractFeeFromAmount};
+    CRecipient recipient = {scriptPubKey, 0, fSubtractFeeFromAmount, NATIVE_ASSET};
     vecSend.push_back(recipient);
     
     CTransactionAttributes attr = CTransactionAttributes(CTransactionTypes::CREATE_COIN, fromAccount, totalSupply, symbol);
@@ -658,7 +658,7 @@ UniValue sendtoaddress(const JSONRPCRequest& request)
             "\nArguments:\n"
             "1. \"address\"            (string, required) The bitcoin address to send to.\n"
             "2. \"amount\"             (numeric or string, required) The amount in " + CURRENCY_UNIT + " to send. eg 0.1\n"
-            "3. \"asset_type\"         (string, required) The asset type to send to.\n"
+            "3. \"asset_type\"         (string, required) The asset type to send to. (use \"NATIVE\" for native asset)\n"
             "4. \"comment\"            (string, optional) A comment used to store what the transaction is for. \n"
             "                             This is not part of the transaction, just kept in your wallet.\n"
             "5. \"comment_to\"         (string, optional) A comment to store the name of the person or organization \n"
@@ -698,9 +698,11 @@ UniValue sendtoaddress(const JSONRPCRequest& request)
         throw JSONRPCError(RPC_TYPE_ERROR, "Invalid amount for send");
 
     //Asset Type
-    CTxDestination assetType = DecodeDestination(request.params[2].get_str());
-    if (!IsValidDestination(assetType)){ // Currently a Valid Destination is possibly a valid assetType.
-        throw JSONRPCError(RPC_TYPE_ERROR, "Invalid amount for send");
+    CAssetType assetType;
+    if (request.params[2].get_str() == "NATIVE"){
+        assetType = NATIVE_ASSET;
+    }else{
+        assetType = request.params[2].get_str();
     }
         
     // Wallet comments
@@ -733,7 +735,7 @@ UniValue sendtoaddress(const JSONRPCRequest& request)
 
     EnsureWalletIsUnlocked(pwallet);
 
-    CTransactionRef tx = SendMoney(pwallet, dest, request.params[2].get_str(), nAmount, fSubtractFeeFromAmount, coin_control, std::move(mapValue), {} /* fromAccount */);
+    CTransactionRef tx = SendMoney(pwallet, dest, assetType, nAmount, fSubtractFeeFromAmount, coin_control, std::move(mapValue), {} /* fromAccount */);
     return tx->GetHash().GetHex();
 }
 
@@ -3393,8 +3395,9 @@ UniValue listunspent(const JSONRPCRequest& request)
 
         UniValue entry(UniValue::VOBJ);
         entry.pushKV("txid", out.tx->GetHash().GetHex());
+        entry.pushKV("assetType", out.tx->tx->vout[out.i].assetType);
         entry.pushKV("vout", out.i);
-
+        
         if (fValidAddress) {
             entry.pushKV("address", EncodeDestination(address));
 
