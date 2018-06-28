@@ -258,9 +258,6 @@ UniValue counttransactionvotes(const JSONRPCRequest& request)
     if (!tx_blockindex) {
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Block not found");
     }
-
-    CBlockHeader block_header = tx_blockindex->GetBlockHeader();
-
     // get wallet for this request
     CWallet* const pwallet = GetWalletForJSONRPCRequest(request);
 

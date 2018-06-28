@@ -2363,7 +2363,7 @@ void CWallet::AvailableCoins(std::vector<COutput> &vCoins, bool fOnlySafe, const
             vCoins.push_back(COutput(pcoin, i, nDepth, fSpendableIn, fSolvableIn, safeTx));
 
             // Checks the sum amount of all UTXO's.
-            if (nMinimumSumAmount != MAX_MONEY) {
+            if (nMinimumSumAmount != MAX_ASSET_MONEY) {
                 nTotal += pcoin->tx->vout[i].nValue;
 
                 if (nTotal >= nMinimumSumAmount) {

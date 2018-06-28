@@ -26,6 +26,8 @@ static const CAmount CENT = 1000000;
  * */
 static const CAmount MAX_MONEY = 56616168 * COIN;
 
+static const CAmount MAX_ASSET_MONEY = std::numeric_limits<int64_t>::max();
+
 inline bool MoneyRange(const CAmount& nValue) { return (nValue >= 0 && nValue < std::numeric_limits<int64_t>::max()); }
 
 
