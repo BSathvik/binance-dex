@@ -50,10 +50,8 @@ CAmount GetDustThreshold(const CTxOut& txout, const CFeeRate& dustRelayFeeIn)
     return dustRelayFeeIn.GetFee(nSize);
 }
 
-bool IsDust(const CTxOut& txout, const CFeeRate& dustRelayFeeIn, CTransactionType type)
+bool IsDust(const CTxOut& txout, const CFeeRate& dustRelayFeeIn)
 {
-    if (type == CTransactionTypes::VOTE || type == CTransactionTypes::ENROLL || type == CTransactionTypes::CREATE_COIN)
-        return false;
     return (txout.nValue < GetDustThreshold(txout, dustRelayFeeIn));
 }
 
@@ -131,7 +129,7 @@ bool IsStandardTx(const CTransaction& tx, std::string& reason, const bool witnes
         else if ((whichType == TX_MULTISIG) && (!fIsBareMultisigStd)) {
             reason = "bare-multisig";
             return false;
-        } else if (IsDust(txout, ::dustRelayFee, tx.type)) {
+        } else if (IsDust(txout, ::dustRelayFee)) {
             reason = "dust";
             return false;
         }
