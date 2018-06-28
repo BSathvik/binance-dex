@@ -545,7 +545,7 @@ static CTransactionRef CreateNewAsset(CWallet * const pwallet, const CTxDestinat
     std::string strError;
     std::vector<CRecipient> vecSend;
     int nChangePosRet = -1;
-    CRecipient recipient = {scriptPubKey, 0, fSubtractFeeFromAmount};
+    CRecipient recipient = {scriptPubKey, 0, fSubtractFeeFromAmount, NATIVE_ASSET};
     vecSend.push_back(recipient);
     
     CTransactionAttributes attr = CTransactionAttributes(CTransactionTypes::CREATE_COIN, fromAccount, totalSupply, symbol);
@@ -702,10 +702,7 @@ UniValue sendtoaddress(const JSONRPCRequest& request)
     if (request.params[2].get_str() == "NATIVE"){
         assetType = NATIVE_ASSET;
     }else{
-        CTxDestination assetType = DecodeDestination(request.params[2].get_str());
-        if (!IsValidDestination(assetType)){ // Currently a Valid Destination is possibly a valid assetType.
-            throw JSONRPCError(RPC_TYPE_ERROR, "Invalid assetType to send");
-        }
+        assetType = request.params[2].get_str();
     }
         
     // Wallet comments
@@ -738,7 +735,7 @@ UniValue sendtoaddress(const JSONRPCRequest& request)
 
     EnsureWalletIsUnlocked(pwallet);
 
-    CTransactionRef tx = SendMoney(pwallet, dest, request.params[2].get_str(), nAmount, fSubtractFeeFromAmount, coin_control, std::move(mapValue), {} /* fromAccount */);
+    CTransactionRef tx = SendMoney(pwallet, dest, assetType, nAmount, fSubtractFeeFromAmount, coin_control, std::move(mapValue), {} /* fromAccount */);
     return tx->GetHash().GetHex();
 }
 

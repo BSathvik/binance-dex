@@ -2837,12 +2837,14 @@ bool CWallet::CreateTransaction(const std::vector<CRecipient>& vecSend, CTransac
                 if (nSubtractFeeFromAmount == 0)
                     nNativeValueToSelect += nFeeRet;
 
-                std::map<std::string, CAmount> assetValuesIn;
+                std::map<CAssetType, CAmount> assetValuesIn;
                 
                 // vouts to the payees
                 coin_selection_params.tx_noinputs_size = 11; // Static vsize overhead + outputs vsize. 4 nVersion, 4 nLocktime, 1 input count, 1 output count, 1 witness overhead (dummy, flag, stack size)
                 for (const auto& recipient : vecSend)
                 {
+                    if (recipient.nAmount <= 0)
+                        continue;
                     CTxOut txout(recipient.nAmount, recipient.scriptPubKey, recipient.assetType);
 
                     if (recipient.fSubtractFeeFromAmount)
@@ -2861,7 +2863,7 @@ bool CWallet::CreateTransaction(const std::vector<CRecipient>& vecSend, CTransac
                     // Include the fee cost for outputs. Note this is only used for BnB right now
                     coin_selection_params.tx_noinputs_size += ::GetSerializeSize(txout, SER_NETWORK, PROTOCOL_VERSION);
 
-                    if (IsDust(txout, ::dustRelayFee) && recipient.assetType == NATIVE_ASSET)
+                    if (IsDust(txout, ::dustRelayFee) && type == CTransactionTypes::VALUE && recipient.assetType == NATIVE_ASSET)
                     {
                         if (recipient.fSubtractFeeFromAmount && nFeeRet > 0)
                         {
@@ -2874,24 +2876,17 @@ bool CWallet::CreateTransaction(const std::vector<CRecipient>& vecSend, CTransac
                             strFailReason = _("Transaction amount too small");
                         return false;
                     }
-                    
-                    assetValuesIn[recipient.assetType] = assetValuesIn.find(recipient.assetType) != assetValuesIn.end() ? assetValuesIn[recipient.assetType] + recipient.nAmount : recipient.nAmount;
+                    if (recipient.assetType == NATIVE_ASSET)
+                        nNativeValueToSelect += recipient.nAmount;
+                    else
+                        assetValuesIn[recipient.assetType] = assetValuesIn.find(recipient.assetType) != assetValuesIn.end() ? assetValuesIn[recipient.assetType] + recipient.nAmount : recipient.nAmount;
                     txNew.vout.push_back(txout);
                 }
                 
-                bool bnb_used_asset = true;
+                bool bnb_used_asset;
                 if (!picked_asset_inputs) {
                     setAssetCoins.clear();
-                    
-                    //Unselect all other asset coins except native asset coins
-                    // std::vector<COutPoint> vOutpointsTemp;
-                    // coin_control.ListSelected(vOutpointsTemp);
-                    //
-                    // for(auto const& outpoint_temp: vOutpointsTemp){
-                    //     if (outpoint_temp)
-                    //     coin_control.UnSelect()
-                    // }
-                    
+
                     // Go through all the assetTypes from the recipients
                     for (auto const& assetValue_map: assetValuesIn){
                         nAssetValueIn = 0;
@@ -2899,26 +2894,25 @@ bool CWallet::CreateTransaction(const std::vector<CRecipient>& vecSend, CTransac
                         CAmount tempValueToSelect = assetValue_map.second;
                         
                         // Choose coins for each assetType
-
                         coin_selection_params.change_spend_size = CalculateMaximumSignedInputSize(change_prototype_txout, this);
-                        coin_selection_params.effective_fee = CFeeRate(0);
-                        coin_selection_params.use_bnb = false;
+                        coin_selection_params.effective_fee = nFeeRateNeeded; // TODO: Set it to 0
+                        coin_selection_params.use_bnb = false; // TODO: Enable Bnb for asset coin selection.
                         if (!SelectCoins(vAvailableCoins, tempValueToSelect, setAssetCoins, nAssetValueIn, coin_control, coin_selection_params, bnb_used_asset, tempAssetType))
                         {
-                            std::string temp = "Insufficient asset funds. assetType: +"+tempAssetType+", valueToSelect: "+ std::to_string(tempValueToSelect) + "\n";
+                            LogPrintf("Insufficient asset funds. assetType: %s, valueToSelect: %s \n", tempAssetType, std::to_string(tempValueToSelect));
                             strFailReason = _("Insufficient asset funds");
                             return false;
                         }
                         
-                        CAmount nAssetChange = tempValueToSelect - nAssetValueIn;
+                        const CAmount nAssetChange = nAssetValueIn - tempValueToSelect;
+                        //LogPrintf("Asset Change Info: %s, %s, %s \n", std::to_string(nAssetChange), std::to_string(nAssetValueIn), std::to_string(tempValueToSelect));
                         if (nAssetChange > 0){
-                            CTxOut newAssetTxOut(nAssetChange, scriptChange, tempAssetType);
-                            std::vector<CTxOut>::iterator position = txNew.vout.begin()+GetRandInt(txNew.vout.size()+1);
-                            txNew.vout.insert(position, newAssetTxOut);
+                            CTxOut changeAssetTxOut(nAssetChange, scriptChange, tempAssetType);
+                            LogPrintf("Asset Change vout: %s \n", changeAssetTxOut.ToString());
+                            std::vector<CTxOut>::iterator pos = txNew.vout.begin();
+                            txNew.vout.insert(pos, changeAssetTxOut);
                         }
-                        
                     }
-                    picked_asset_inputs = true;
                 }
                 
                 
@@ -2950,7 +2944,6 @@ bool CWallet::CreateTransaction(const std::vector<CRecipient>& vecSend, CTransac
                 {
                     // Fill a vout to ourself
                     CTxOut newTxOut(nNativeChange, scriptChange);
-
                     // Never create dust outputs; if we would, just
                     // add the dust to the fee.
                     // The nChange when BnB is used is always going to go to fees.

@@ -52,6 +52,7 @@ CAmount GetDustThreshold(const CTxOut& txout, const CFeeRate& dustRelayFeeIn)
 
 bool IsDust(const CTxOut& txout, const CFeeRate& dustRelayFeeIn)
 {
+    return false; // TODO : Change this
     return (txout.nValue < GetDustThreshold(txout, dustRelayFeeIn));
 }
 
