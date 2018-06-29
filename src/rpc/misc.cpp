@@ -19,7 +19,6 @@
 #include <timedata.h>
 #include <util.h>
 #include <utilstrencodings.h>
-#include <countvotes.h>
 #include <index/txindex.h>
 #include <amount.h>
 #ifdef ENABLE_WALLET
@@ -204,67 +203,6 @@ UniValue verifymessage(const JSONRPCRequest& request)
     return (pubkey.GetID() == *keyID);
 }
 
-UniValue counttransactionvotes(const JSONRPCRequest& request)
-{
-    if (request.fHelp || request.params.size() != 1)
-        throw std::runtime_error(
-            "counttranasctionvotes \"txid\" \n"
-            "\nCount the votes in a transaction\n"
-            "\nArguments:\n"
-            "1. \"txid\"         (string, required) The transaction id.\n"
-            "\nResult:\n"
-            "x             (numeric) Total votes in transaction\n"
-            "\nExamples:\n"
-            + HelpExampleCli("counttranasctionvotes", "\"txid\"")
-        );
-
-    LOCK(cs_main);
-
-    uint256 hash = ParseHashStr(request.params[0].get_str(), "txid");
-    CBlockIndex* blockindex = nullptr;
-
-    if (hash == Params().GenesisBlock().hashMerkleRoot) {
-        // Special exception for the genesis block coinbase transaction
-        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "The genesis block coinbase is not considered an ordinary transaction and cannot be retrieved");
-    }
-    
-    bool f_txindex_ready = false;
-    if (g_txindex && !blockindex) {
-        f_txindex_ready = g_txindex->BlockUntilSyncedToCurrentChain();
-    }
-
-    CTransactionRef tx;
-    uint256 hash_block;
-    
-    //GetTransaction does not find blockindex. blockindex is still nullptr
-    if (!GetTransaction(hash, tx, Params().GetConsensus(), hash_block, true, blockindex)) {
-        std::string errmsg;
-        if (blockindex) {
-            if (!(blockindex->nStatus & BLOCK_HAVE_DATA)) {
-                throw JSONRPCError(RPC_MISC_ERROR, "Block not available");
-            }
-            errmsg = "No such transaction found in the provided block";
-        } else if (!g_txindex) {
-            errmsg = "No such mempool transaction. Use -txindex to enable blockchain transaction queries";
-        } else if (!f_txindex_ready) {
-            errmsg = "No such mempool transaction. Blockchain transactions are still in the process of being indexed";
-        } else {
-            errmsg = "No such mempool or blockchain transaction";
-        }
-        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, errmsg + ". Use gettransaction for wallet transactions.");
-    }
-
-    CBlockIndex *tx_blockindex = LookupBlockIndex(hash_block);
-    if (!tx_blockindex) {
-        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Block not found");
-    }
-    // get wallet for this request
-    CWallet* const pwallet = GetWalletForJSONRPCRequest(request);
-
-    CAmount totalVotes = GetTransactionVoteAmount(*tx, tx_blockindex, chainActive, pwallet);
-    
-    return totalVotes / (double) (COIN); // In BTC
-}
 
 UniValue signmessagewithprivkey(const JSONRPCRequest& request)
 {
@@ -531,7 +469,6 @@ static const CRPCCommand commands[] =
     { "util",               "createmultisig",         &createmultisig,         {"nrequired","keys"} },
     { "util",               "verifymessage",          &verifymessage,          {"address","signature","message"} },
     { "util",               "signmessagewithprivkey", &signmessagewithprivkey, {"privkey","message"} },
-    { "util",               "counttransactionvotes",  &counttransactionvotes,  {"txid"} },
 
     /* Not shown in help */
     { "hidden",             "setmocktime",            &setmocktime,            {"timestamp"}},

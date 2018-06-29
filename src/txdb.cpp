@@ -19,6 +19,7 @@
 #include <stdint.h>
 #include <uint256.h>
 #include <numeric>
+#include <index/txindex.h>
 
 #include <boost/algorithm/string.hpp>
 #include <boost/thread.hpp>
@@ -67,6 +68,13 @@ static const char DB_CANDIDATES_ADDR = 'a';
  */
 
 static const char DB_ADDR_BAL = 'A';
+
+/* DB_ASSET_FROZEN: Entry in LevelDB prefixed by 'F'
+ * key: an asset type
+ * value: 0 if not frozen, 1 if frozen
+ */
+
+static const char DB_ASSET_FROZEN = 'F';
 
 namespace {
 
@@ -248,6 +256,20 @@ bool CBlockTreeDB::IsEnrolled(const std::string addr) {
     return false;
   std::cout << "ReadVoteCount returns: " << ReadVoteCount(addr, nVotes) << std::endl;
   return nVotes != -1;
+}
+
+bool CBlockTreeDB::WriteAssetFrozen(const std::string assetType, bool isFrozen) {
+  int frozen = 0;
+  if (isFrozen) frozen = 1;
+  return Write(std::make_pair(DB_ASSET_FROZEN, assetType), frozen);
+}
+
+bool CBlockTreeDB::ReadAssetFrozen(const std::string assetType, bool& isFrozen) {
+  int frozen = 0;
+  if(!Read(std::make_pair(DB_ASSET_FROZEN, assetType), frozen))
+    return false;
+  isFrozen = frozen == 1;
+  return true;
 }
 
 bool CBlockTreeDB::WriteAddrBalance(const std::string addr, int nAmount) {
@@ -595,6 +617,24 @@ bool CBlockTreeDB::WriteVoteCount(const CBlock* block) {
       int nBalance = 0;
       ReadAddrBalance(inputAddr, nBalance);
       Write(std::make_pair(DB_ADDR_BAL, nBalance), (uint64_t) (nBalance - totalOutput));
+
+    } else if (currTransaction->type == CTransactionTypes::FREEZE_ASSET) {
+
+      UniValue entry(UniValue::VOBJ);
+      TxToUniv(**it, (block->GetBlockHeader()).GetHash(), entry);
+
+      std::string vinTxId = entry["vin"][0]["txid"].get_str();
+      uint256 hash;
+      hash.SetHex(vinTxId);
+      CTransactionRef txOut;
+      uint256 blockhash;
+
+      g_txindex->FindTx(hash, blockhash, txOut);
+      bool frozen;
+      std::string sAsset(currTransaction->attr.assetType.c_str());
+      if(ReadAssetFrozen(sAsset, frozen))
+        WriteAssetFrozen(sAsset, !frozen);
+      else WriteAssetFrozen(sAsset, frozen);
 
     }
 

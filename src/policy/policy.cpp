@@ -7,7 +7,6 @@
 
 #include <policy/policy.h>
 
-#include <countvotes.h>
 #include <consensus/validation.h>
 #include <validation.h>
 #include <coins.h>

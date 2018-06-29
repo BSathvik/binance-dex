@@ -26,6 +26,7 @@ struct CTransactionTypes{
     static const CTransactionType VOTE = 0x45;
     static const CTransactionType ENROLL = 0x65;
     static const CTransactionType CREATE_COIN = 0x79;
+    static const CTransactionType FREEZE_ASSET = 0x71;
     
 };
 

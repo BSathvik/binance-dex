@@ -99,7 +99,6 @@ BITCOIN_CORE_H = \
   consensus/tx_verify.h \
   core_io.h \
   core_memusage.h \
-  countvotes.h \
   cuckoocache.h \
   fs.h \
   httprpc.h \
@@ -202,7 +201,6 @@ libbitcoin_server_a_SOURCES = \
   chain.cpp \
   checkpoints.cpp \
   consensus/tx_verify.cpp \
-  countvotes.cpp \
   httprpc.cpp \
   httpserver.cpp \
   index/txindex.cpp \

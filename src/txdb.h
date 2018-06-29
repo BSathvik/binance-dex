@@ -132,6 +132,8 @@ public:
     bool IsEnrolled(const std::string addr);
     bool WriteAddrBalance(const std::string addr, int nAmount);
     bool ReadAddrBalance(const std::string addr, int &nAmount);
+    bool WriteAssetFrozen(const std::string assetType, bool isFrozen);
+    bool ReadAssetFrozen(const std::string assetType, bool &isFrozen);
 };
 
 /**
