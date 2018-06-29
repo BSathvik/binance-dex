@@ -40,7 +40,7 @@
 #include <validation.h>
 #include <validationinterface.h>
 #include <warnings.h>
-#include <wallet/walletdb.cpp>
+#include <wallet/walletdb.h>
 
 #include <future>
 #include <sstream>
