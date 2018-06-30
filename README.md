@@ -167,6 +167,15 @@ Off-chain matching engines are the best solution to the problem of order matchin
 matching algorithms use simple data structures such as queues to accomplish this task. These algorithms are very fast and would not bottleneck the number of trades executed
 on the network.
 
+Instead of using Bitcoin or any other existing cryptocurrency source, we learned that it would have been a better DEX implementation if we had started from scratch given the
+competition's time constraint. We originally thought we would not have been able to deliver it on time. One interesting development that would have been very useful is the
+[CryptoKernel](https://github.com/mit-dci/CryptoKernel), developed by the MIT DCI, which is essentially a barebones framework for creating a blockchain or cryptocurrency. This would have allowed us to more easily implement everything required for a decentralized exchange, as well as allowed us to create additional functionality on top of that.
+
+Overall, we learned a lot about cryptocurrencies, decentralized exchanges, and consensus algorithms, and we would like to continue development using this knowledge. We would be
+extremely interested in continuing this development based on the ideas we've discussed at Binance, and would like to know about any opportunities to work at Binance next summer for
+internships.
+
+
 Running a node using Docker
 ----------------
 The Dockerfile builds an image with all the dependencies installed on Ubuntu 16.04 LTS.
