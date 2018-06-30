@@ -35,13 +35,17 @@ There are pretty much two factors that effect throughput and exchange performanc
  - Off Chain vs On Chain matching engine
  
 When we approached this massive project we knew that for people to use a decentralized exchange, it had to be extremely 
-fast. We researched various consensus algorithms to try to find the fastest one. Here is a summary of our findings:
+fast. This was the basis of our design rationale.
+
+### Consensus
+
+We researched various consensus algorithms to try to find the fastest one. Here is a summary of our findings:
 
 #### Proof-of-Work (PoW)
 Had we chosen this consensus mechanism, we would have created the slowest decentralized exchange in existence. This is
 the main drawback of Proof-of-Work (bitcoin's consensus mechanism), low throughput in exchange for high security and
 potentially high decentralization. This was not optimal for a decentralized exchange. While it was already implemented 
-in the bitcoin repo, we choose to disable that and implement a different consensus algorithm.
+in the bitcoin repo, we ended up completely removing Proof-of-Work from bitcoin, which was less trivial than it sounds.
 
 #### Proof-of-Stake (PoS)
 Proof-of-Stake is, in theory, much faster than Proof-of-Work and is in general very fast. However, there are currently
@@ -88,18 +92,40 @@ with public voting.
 We chose DPoS because it is simple, fast, and we had found solutions to the major consensus and governance issues that current
 implementations have.
 
-###Order Matching
+### Order Matching
 
 Order matching is rarely a bottleneck for decentralized exchanges, since the consensus algorithm for distributed ledgers
-is what leads to low transaction throughput and high latency.
+is what leads to low transaction throughput and high latency. This is why we put so much work into the consensus algorithm,
+the more a team knows their consensus algorithm and both its technical and cryptoeconomic benefits / drawbacks, the more
+secure and decentralized the network will be. The throughput is determined by the choice of consensus algorithm, so we chose
+the one that was proven to be the fastest and had the potential to be the most secure, which was DPoS. 
 
-Technical Details
-----------------
+The matching engine,
+at this point, was not the bottleneck anymore. We used an existing open-source matching engine, [LightMatchingEngine](https://github.com/gavincyi/LightMatchingEngine), that could obtain transactions
+through ZMQ (a subscription/notification system), construct the order book, and match orders faster than they can be placed 
+on the blockchain.
 
-Improvements, challenges, what we learned, and what we would do
-----------------
+### UTXOs vs Account-Based
 
+Some blockchains, such as bitcoin, use Unspent Transaction Outputs to keep track of whether or not a user can spend a certain
+amount of coins. This allows for bitcoin's many-to-many model and allows for much more scalability versus an account-based model. 
+It would have been very difficult to implement an account-based model and would not have yielded many more benefits.
 
+We used the [Ethereum Design Rationale](https://github.com/ethereum/wiki/wiki/Design-Rationale) as a resource for this decision.
+
+### Choice of the bitcoin repo and changes made
+
+We chose the bitcoin repo because, aside from Proof-of-Work, it is an extremely robust, secure, and very scalable cryptocurrency. 
+We had some challenges when implementing multiple assets and premine, but for the most part it "just worked". When we were deciding how to start,
+were not aware that MIT DCI had the [CryptoKernel](https://github.com/mit-dci/CryptoKernel), which is an extremely interesting innovation.
+
+Improvements, challenges, what the ideal DEX looks like, and how to make it.
+---------------
+
+We had many challenges, learned a lot, and were able to come up with solutions to many of the unsolved problems regarding
+robust and scalable cryptocurrencies, decentralized exchanges, and adoption. We were also able to reason about what were
+the **wrong** ways to build a decentralized exchange, and what it would take to build the best, most adaptive decentralized
+exchange.
 
 Running a node using Docker
 ----------------
