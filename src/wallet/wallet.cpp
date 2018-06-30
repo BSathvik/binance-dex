@@ -2470,10 +2470,10 @@ bool CWallet::SelectCoinsMinConf(const CAmount& nTargetValue, const CoinEligibil
         CCoinControl temp;
         temp.m_confirm_target = 1008;
         CFeeRate long_term_feerate = GetMinimumFeeRate(*this, temp, ::mempool, ::feeEstimator, &feeCalc);
-
+       LogPrintf("fuuuuuuutttttt %s,,,, : %s \n", std::to_string(coin_selection_params.change_spend_size), std::to_string(coin_selection_params.change_output_size));
         // Calculate cost of change
         CAmount cost_of_change = GetDiscardRate(*this, ::feeEstimator).GetFee(coin_selection_params.change_spend_size) + coin_selection_params.effective_fee.GetFee(coin_selection_params.change_output_size);
-
+        LogPrintf("Whaaattttttt %s\n", "sss");
         // Filter by the min conf specs and add to utxo_pool and calculate effective value
         for (const COutput &output : vCoins)
         {
@@ -2486,6 +2486,7 @@ bool CWallet::SelectCoinsMinConf(const CAmount& nTargetValue, const CoinEligibil
                 continue;
                 
             coin.effective_value = coin.txout.nValue - (output.nInputBytes < 0 ? 0 : coin_selection_params.effective_fee.GetFee(output.nInputBytes));
+           LogPrintf("sadsadasdsa%s\n", "sss");
             // Only include outputs that are positive effective value (i.e. not dust)
             if (coin.effective_value > 0) {
                 coin.fee = output.nInputBytes < 0 ? 0 : coin_selection_params.effective_fee.GetFee(output.nInputBytes);
@@ -2493,8 +2494,10 @@ bool CWallet::SelectCoinsMinConf(const CAmount& nTargetValue, const CoinEligibil
                 utxo_pool.push_back(coin);
             }
         }
+        LogPrintf("00000000000000000%s\n", "sss");
         // Calculate the fees for things that aren't inputs
         CAmount not_input_fees = coin_selection_params.effective_fee.GetFee(coin_selection_params.tx_noinputs_size);
+        LogPrintf("ppppppppppppppp%s\n", "sss");
         bnb_used = true;
         return SelectCoinsBnB(utxo_pool, nTargetValue, cost_of_change, setCoinsRet, nValueRet, not_input_fees);
     } else {
@@ -2880,7 +2883,9 @@ bool CWallet::CreateTransaction(const std::vector<CRecipient>& vecSend, CTransac
                         nNativeValueToSelect += recipient.nAmount;
                     else
                         assetValuesIn[recipient.assetType] = assetValuesIn.find(recipient.assetType) != assetValuesIn.end() ? assetValuesIn[recipient.assetType] + recipient.nAmount : recipient.nAmount;
-                    txNew.vout.push_back(txout);
+                    
+                    if (!(type == CTransactionTypes::ORDER && recipient.nAmount == attr.tradeAmount))
+                        txNew.vout.push_back(txout);
                 }
                 
                 bool bnb_used_asset;
@@ -3011,7 +3016,6 @@ bool CWallet::CreateTransaction(const std::vector<CRecipient>& vecSend, CTransac
                     strFailReason = _("Fee estimation failed. Fallbackfee is disabled. Wait a few blocks or enable -fallbackfee.");
                     return false;
                 }
-
                 // If we made it here and we aren't even able to meet the relay fee on the next pass, give up
                 // because we must be at the maximum allowed fee.
                 if (nFeeNeeded < ::minRelayTxFee.GetFee(nBytes))

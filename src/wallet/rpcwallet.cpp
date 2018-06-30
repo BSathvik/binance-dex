@@ -490,6 +490,49 @@ static CTransactionRef SendMoney(CWallet * const pwallet, const CTxDestination &
     return tx;
 }
 
+static CTransactionRef PlaceOrder(CWallet * const pwallet, const CTxDestination &address, CTradingPair trading_pair, CTradingSide trading_side, CTradingPrice price, CAmount amount, const CCoinControl& coin_control, mapValue_t mapValue, std::string fromAccount)
+{
+    CAmount curBalance = pwallet->GetBalance();
+
+    // Check amount
+    if (amount <= 0)
+        throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid amount");
+
+    if (amount > curBalance)
+        throw JSONRPCError(RPC_WALLET_INSUFFICIENT_FUNDS, "Insufficient funds");
+
+    if (pwallet->GetBroadcastTransactions() && !g_connman) {
+        throw JSONRPCError(RPC_CLIENT_P2P_DISABLED, "Error: Peer-to-peer functionality missing or disabled");
+    }
+
+    // Parse Bitcoin address
+    CScript scriptPubKey = GetScriptForDestination(address);
+    bool fSubtractFeeFromAmount = false;
+    // Create and send the transaction
+    CReserveKey reservekey(pwallet);
+    CAmount nFeeRequired;
+    std::string strError;
+    std::vector<CRecipient> vecSend;
+    int nChangePosRet = -1;
+    CRecipient recipient = {scriptPubKey, amount, fSubtractFeeFromAmount, NATIVE_ASSET};
+    vecSend.push_back(recipient);
+    CTransactionRef tx;
+    
+    CTransactionAttributes attr = CTransactionAttributes(CTransactionTypes::ORDER, trading_pair, trading_side, price, amount, fromAccount);
+        
+    if (!pwallet->CreateTransaction(vecSend, tx, reservekey, nFeeRequired, nChangePosRet, strError, coin_control, CTransactionTypes::ORDER, attr, NATIVE_ASSET)) {
+        if (!fSubtractFeeFromAmount && amount + nFeeRequired > curBalance)
+            strError = strprintf("Error: This transaction requires a transaction fee of at least %s", FormatMoney(nFeeRequired));
+        throw JSONRPCError(RPC_WALLET_ERROR, strError);
+    }
+    CValidationState state;
+    if (!pwallet->CommitTransaction(tx, std::move(mapValue), {} /* orderForm */, std::move(fromAccount), reservekey, g_connman.get(), state)) {
+        strError = strprintf("Error: The transaction was rejected! Reason given: %s", FormatStateMessage(state));
+        throw JSONRPCError(RPC_WALLET_ERROR, strError);
+    }
+    return tx;
+}
+
 static CTransactionRef SendVote(CWallet * const pwallet, const CTxDestination &address, const CCoinControl& coin_control, mapValue_t mapValue, std::string fromAccount)
 {
     CAmount curBalance = pwallet->GetBalance();
@@ -879,6 +922,75 @@ UniValue createasset(const JSONRPCRequest& request)
     EnsureWalletIsUnlocked(pwallet);
 
     CTransactionRef tx = CreateNewAsset(pwallet, dest, assetTotalSupply, coin_control, std::move(mapValue), request.params[0].get_str(), symbol);
+    return tx->GetHash().GetHex();
+}
+
+UniValue placeorder(const JSONRPCRequest& request)
+{
+    CWallet * const pwallet = GetWalletForJSONRPCRequest(request);
+    if (!EnsureWalletIsAvailable(pwallet, request.fHelp)) {
+        return NullUniValue;
+    }
+
+    if (request.fHelp || request.params.size() < 5 || request.params.size() > 5)
+        throw std::runtime_error(
+            "placeorder \"trade_pair\",\"trade_side\",\"price\",\"amount\"\n"
+            "\nSend an amount to a given address.\n"
+            + HelpRequiringPassphrase(pwallet) +
+            "\nArguments:\n"
+            "1. \"trade_pair\"         (string, required) The trading pair.\n"
+            "2. \"trade_side\"         (string, required) buy or ask.\n"
+            "3. \"price\"              (string, required) price to exchange trading pair.\n"
+            "4. \"amount\"             (numeric or string, required) The amount in " + CURRENCY_UNIT + " to send. eg 0.1\n"
+            "5. \"address\"            (string, required) The bitcoin address to send from.\n"
+                            
+            "\nResult:\n"
+            "\"txid\"                  (string) The transaction id.\n"
+            "\nExamples:\n"
+            + HelpExampleCli("placeorder", "\"1M72Sfpbz1BPpXFHz9m3CdqATR44Jvaydd\" 2389012")
+            + HelpExampleCli("placeorder", "\"1M72Sfpbz1BPpXFHz9m3CdqATR44Jvaydd\" 1000000000 \"donation\" \"seans outpost\"")
+            + HelpExampleCli("placeorder", "\"1M72Sfpbz1BPpXFHz9m3CdqATR44Jvaydd\" 89231 \"\" \"\" true")
+            + HelpExampleRpc("placeorder", "\"1M72Sfpbz1BPpXFHz9m3CdqATR44Jvaydd\",9000, \"donation\", \"seans outpost\"")
+        );
+
+    // Make sure the results are valid at least up to the most recent block
+    // the user could have gotten from another RPC command prior to now
+    pwallet->BlockUntilSyncedToCurrentChain();
+
+    LOCK2(cs_main, pwallet->cs_wallet);
+    
+    CTxDestination dest = DecodeDestination(request.params[4].get_str());
+    if (!IsValidDestination(dest)) {
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid address");
+    }
+    
+    CTradingPair trading_pair = request.params[0].get_str();
+    if (trading_pair.empty())
+        throw JSONRPCError(RPC_TYPE_ERROR, "Invalid trading pair");
+        
+    CTradingPair trading_side = request.params[1].get_str();
+    if (trading_side.empty())
+        throw JSONRPCError(RPC_TYPE_ERROR, "Invalid trading side");
+        
+    // Price
+    CTradingPrice price = AmountFromValue(request.params[2]);
+    if (price <= 0)
+        throw JSONRPCError(RPC_TYPE_ERROR, "Invalid price");
+
+    // Amount
+    CAmount amount = AmountFromValue(request.params[3]);
+    if (amount <= 0)
+        throw JSONRPCError(RPC_TYPE_ERROR, "Invalid amount");
+
+    CCoinControl coin_control;
+    coin_control.destChange = dest;
+    coin_control.m_signal_bip125_rbf = false; // Replacable ? Nope
+    
+    EnsureWalletIsUnlocked(pwallet);
+    
+    mapValue_t mapValue;
+
+    CTransactionRef tx = PlaceOrder(pwallet, dest, trading_pair, trading_side, price, amount, coin_control, std::move(mapValue), request.params[4].get_str());
     return tx->GetHash().GetHex();
 }
 
@@ -4435,6 +4547,7 @@ static const CRPCCommand commands[] =
     { "wallet",             "sendmany",                         &sendmany,                      {"fromaccount|dummy","amounts","minconf","comment","subtractfeefrom","replaceable","conf_target","estimate_mode"} },
     { "wallet",             "sendtoaddress",                    &sendtoaddress,                 {"address","amount","asset_type","comment","comment_to","subtractfeefromamount","replaceable","conf_target","estimate_mode"} },
     { "wallet",             "voteonaddress",                    &voteonaddress,                 {"address","comment","comment_to","replaceable","conf_target","estimate_mode"} },
+    { "wallet",             "placeorder",                       &placeorder,                    {"trading_pair","tradi_side","price","amount","conf_target","estimate_mode"} },
     { "wallet",             "settxfee",                         &settxfee,                      {"amount"} },
     { "wallet",             "signmessage",                      &signmessage,                   {"address","message"} },
     { "wallet",             "signrawtransactionwithwallet",     &signrawtransactionwithwallet,  {"hexstring","prevtxs","sighashtype"} },
