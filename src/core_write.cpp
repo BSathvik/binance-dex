@@ -161,10 +161,16 @@ void TxToUniv(const CTransaction& tx, const uint256& hashBlock, UniValue& entry,
     entry.pushKV("version", tx.nVersion);
     UniValue attr(UniValue::VOBJ);
     attr.pushKV("type", (int64_t)tx.attr.type);
-    if (tx.type == CTransactionTypes::CREATE_COIN){
+    if (tx.type == CTransactionTypes::CREATE_COIN) {
         attr.pushKV("assetType", tx.attr.assetType);
         attr.pushKV("assetTotalSupply", tx.attr.assetTotalSupply);
         attr.pushKV("assetSymbol", tx.attr.assetSymbol);
+    } else if(tx.type == CTransactionTypes::ORDER) {
+        attr.pushKV("tradePair", tx.attr.tradePair);
+        attr.pushKV("tradeSide", tx.attr.tradeSide);
+        attr.pushKV("tradePrice", tx.attr.tradePrice);
+        attr.pushKV("tradeAmount", tx.attr.tradeAmount);
+        attr.pushKV("tradeOwner", tx.attr.tradeOwner);
     }
     entry.pushKV("attributes", attr);
     entry.pushKV("type", (int64_t)tx.type);

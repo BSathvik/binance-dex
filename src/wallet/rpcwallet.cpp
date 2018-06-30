@@ -600,6 +600,86 @@ static CTransactionRef EnrollAsWitness(CWallet * const pwallet, const CTxDestina
     return tx;
 }
 
+static CTransactionRef FreezeAsset(CWallet * const pwallet, const CTxDestination &address, const CCoinControl& coin_control, mapValue_t mapValue, std::string fromAccount)
+{
+    CAmount curBalance = pwallet->GetBalance();
+
+    if (pwallet->GetBroadcastTransactions() && !g_connman) {
+        throw JSONRPCError(RPC_CLIENT_P2P_DISABLED, "Error: Peer-to-peer functionality missing or disabled");
+    }
+
+    // Parse Bitcoin address
+    CScript scriptPubKey = GetScriptForDestination(address);
+
+    // Create and send the transaction
+    CReserveKey reservekey(pwallet);
+    CAmount nFeeRequired;
+    std::string strError;
+    std::vector<CRecipient> vecSend;
+    int nChangePosRet = -1;
+    CRecipient recipient = {scriptPubKey, 0, false};
+    vecSend.push_back(recipient);
+    CTransactionRef tx;
+
+    CTransactionAttributes attr = CTransactionAttributes(CTransactionTypes::FREEZE_ASSET);
+
+    if (!pwallet->CreateTransaction(vecSend, tx, reservekey, nFeeRequired, nChangePosRet, strError, coin_control, CTransactionTypes::FREEZE_ASSET, attr)) {
+        if (nFeeRequired > curBalance)
+            strError = strprintf("Error: This transaction requires a transaction fee of at least %s", FormatMoney(nFeeRequired));
+        throw JSONRPCError(RPC_WALLET_ERROR, strError);
+    }
+    CValidationState state;
+    if (!pwallet->CommitTransaction(tx, std::move(mapValue), {} /* orderForm */, std::move(fromAccount), reservekey, g_connman.get(), state)) {
+        strError = strprintf("Error: The transaction was rejected! Reason given: %s", FormatStateMessage(state));
+        throw JSONRPCError(RPC_WALLET_ERROR, strError);
+    }
+    return tx;
+}
+
+UniValue freezeasset(const JSONRPCRequest& request)
+{
+
+    CWallet* const pwallet = GetWalletForJSONRPCRequest(request);
+    if (!EnsureWalletIsAvailable(pwallet, request.fHelp)) {
+        return NullUniValue;
+    }
+
+    if(request.fHelp || request.params.size() != 1)
+        throw std::runtime_error(
+                "freezeasset\n \"asset type\""
+                "\nFreeze this asset (if you own it) so no transactions with this token can be sent.\n"
+                "\nArguments:\n"
+                "1. \"asset type\"         (string, required) \n"
+                "\nResult:\n"
+                "x             (string) The txid of the freeze transaction\n"
+                "\nExamples:\n"
+                + HelpExampleCli("freezeasset", "asset type")
+        );
+
+    pwallet->BlockUntilSyncedToCurrentChain();
+
+    LOCK2(cs_main, pwallet->cs_wallet);
+
+    EnsureWalletIsUnlocked(pwallet);
+
+    if (!pwallet->IsLocked()) {
+        pwallet->TopUpKeyPool();
+    }
+
+    CTxDestination dest = DecodeDestination(request.params[0].get_str());
+    if (!IsValidDestination(dest)) {
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid address");
+    }
+    std::string strAccount = LabelFromValue(request.params[0]);
+
+    CCoinControl coin_control;
+    mapValue_t mapValue;
+
+    CTransactionRef tx = FreezeAsset(pwallet, dest, coin_control, std::move(mapValue), std::move(strAccount));
+    return tx->GetHash().GetHex();
+
+}
+
 UniValue enrollaswitness(const JSONRPCRequest& request)
 {
     
@@ -4373,6 +4453,7 @@ static const CRPCCommand commands[] =
 
     { "generating",         "generate",                         &generate,                      {"nblocks","maxtries"} },
     { "wallet",             "enrollaswitness",                  &enrollaswitness,               {} },
+    { "wallet",             "freezeasset",                      &freezeasset,                   {"address"} },
     { "wallet",             "createasset",                      &createasset,                   {"address","total_supply","symbol","comment"} },
 };
 

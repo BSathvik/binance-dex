@@ -3124,9 +3124,12 @@ bool CheckBlock(const CBlock& block, CValidationState& state, const Consensus::P
         if((*tx).type == CTransactionTypes::VOTE) {
             CTxDestination ret;
             std::vector<CTxOut> vouts = (*tx).vout;
-            for(std::vector<CTxOut>::const_iterator ii = vouts.begin(); ii != vouts.end(); ++ii)
-                if((*ii).nValue == 0)
+            for(std::vector<CTxOut>::const_iterator ii = vouts.begin(); ii != vouts.end(); ++ii) {
+                if ((*ii).nValue == 0)
                     ExtractDestination((*ii).scriptPubKey, ret);
+                if(!(pblocktree->IsAssetFrozen((*ii).assetType)))
+                    return state.Invalid(false, REJECT_INVALID, "asset-is-frozen");
+            }
             if(!(pblocktree->IsEnrolled(EncodeDestination(ret))))
                 return state.Invalid(false, REJECT_INVALID, "address-not-enrolled");
         }

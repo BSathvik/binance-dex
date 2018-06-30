@@ -254,8 +254,14 @@ bool CBlockTreeDB::IsEnrolled(const std::string addr) {
   int nVotes = 0;
   if(!ReadVoteCount(addr, nVotes))
     return false;
-  std::cout << "ReadVoteCount returns: " << ReadVoteCount(addr, nVotes) << std::endl;
   return nVotes != -1;
+}
+
+bool CBlockTreeDB::IsAssetFrozen(const std::string assetType) {
+  bool isFrozen;
+  if(!ReadAssetFrozen(assetType, isFrozen))
+    return false;
+  return isFrozen;
 }
 
 bool CBlockTreeDB::WriteAssetFrozen(const std::string assetType, bool isFrozen) {
@@ -436,7 +442,7 @@ bool CBlockTreeDB::WriteVoteCount(const CBlock* block) {
 
       /// TODO: Make sure that this is the correct way to get the output address, make sure there can only be 2 unique output addresses
       for (unsigned int i = 0; i < voutAddresses.size(); i++)
-        if (voutAddresses[i].get_str() != inputAddr)
+        if (voutAddresses[i].get_str().compare(inputAddr) != 0)
           outputAddr = voutAddresses[i].get_str();
 
       std::vector<std::string> otherEnrolled;
@@ -555,6 +561,7 @@ bool CBlockTreeDB::WriteVoteCount(const CBlock* block) {
       std::vector<float> outputBalances;
 
       std::vector<UniValue> voutAddresses;
+      std::string voutAssetType;
 
       /// Find the vout value, get all vouts
       /// std::vector<UniValue> voutObjects = find_value(entry, "vout").getValues();
@@ -566,9 +573,10 @@ bool CBlockTreeDB::WriteVoteCount(const CBlock* block) {
       for (unsigned int j = 0; j < voutObjects.size(); j++) {
 
         voutAddresses = voutObjects[j]["scriptPubKey"]["addresses"].getValues();
+        voutAssetType = voutObjects[j]["assetType"].get_str();
 
         for (unsigned int i = 0; i < voutAddresses[i].size(); i++) {
-          if (voutAddresses[i].get_str() != inputAddr) {
+          if (voutAddresses[i].get_str().compare(inputAddr) != 0 && voutAssetType.compare(NATIVE_ASSET.c_str()) == 0) {
             outputBalances.insert(outputBalances.end(), strtof(voutObjects[j]["value"].get_str().c_str(), 0));
             std::cout << "Inserting output balance: " << voutObjects[j]["value"].get_str() << std::endl;
             outputAddrs.insert(outputAddrs.end(), voutAddresses[i].get_str());
@@ -630,9 +638,26 @@ bool CBlockTreeDB::WriteVoteCount(const CBlock* block) {
       uint256 blockhash;
 
       g_txindex->FindTx(hash, blockhash, txOut);
-      bool frozen;
+
+      // DO NOT TRY TO FIND HASH OF TX CAUSES SEGFAULT
+      bool frozen = false;
+
       std::string sAsset(currTransaction->attr.assetType.c_str());
-      if(ReadAssetFrozen(sAsset, frozen))
+
+      bool doesHaveOutputToCorrectAddress = false;
+      std::string correctAssetType = "";
+      std::vector<UniValue> outValues = entry["vout"].getValues();
+
+      for(std::vector<UniValue>::const_iterator ii = outValues.begin(); ii != outValues.end(); ++ii) {
+        if((*ii)["assetType"].get_str().compare((*ii)["scriptPubKey"]["addresses"][0].get_str()) == 0) {
+          correctAssetType = (*ii)["assetType"].get_str();
+          doesHaveOutputToCorrectAddress = true;
+        }
+      }
+
+
+
+      if(ReadAssetFrozen(sAsset, frozen) && doesHaveOutputToCorrectAddress)
         WriteAssetFrozen(sAsset, !frozen);
       else WriteAssetFrozen(sAsset, frozen);
 

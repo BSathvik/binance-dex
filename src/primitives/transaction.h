@@ -18,7 +18,15 @@ typedef uint32_t CTransactionType;
 typedef std::string CAssetType;
 typedef std::string CAssetSymbol;
 
+typedef std::string CTradingPair;
+typedef std::string CTradingSide;
+typedef int64_t CTradingPrice;
+typedef std::string CTradingOwner;
+
 static const CAssetType NATIVE_ASSET = "0x1";
+
+static const CTradingSide BUY = "BUY";
+static const CTradingSide SELL = "SELL";
 
 struct CTransactionTypes{
     
@@ -27,6 +35,7 @@ struct CTransactionTypes{
     static const CTransactionType ENROLL = 0x65;
     static const CTransactionType CREATE_COIN = 0x79;
     static const CTransactionType FREEZE_ASSET = 0x71;
+    static const CTransactionType ORDER = 0x32;
     
 };
 
@@ -204,10 +213,18 @@ public:
     CAssetType assetType;
     CAssetSymbol assetSymbol;
     CAmount assetTotalSupply;
-    
+
+    // ORDER Attributes
+    CTradingPair tradePair;
+    CTradingSide tradeSide;
+    CTradingPrice tradePrice;
+    CAmount tradeAmount;
+    CTradingOwner tradeOwner;
+
     CTransactionAttributes();
     CTransactionAttributes(CTransactionType txType);
     CTransactionAttributes(CTransactionType txType, CAssetType assetType, CAmount assetTotalSupply, std::string assetSymbol);
+    CTransactionAttributes(CTransactionType txType, CTradingPair tradePair, CTradingSide tradeSide, CTradingPrice tradePrice, CAmount tradeAmount, CTradingOwner tradeOwner);
     
     ADD_SERIALIZE_METHODS;
     
@@ -219,6 +236,13 @@ public:
             READWRITE(assetType);
             READWRITE(assetTotalSupply);
             READWRITE(assetSymbol);
+        }
+        if (type == CTransactionTypes::ORDER){
+            READWRITE(tradePair);
+            READWRITE(tradeSide);
+            READWRITE(tradePrice);
+            READWRITE(tradeAmount);
+            READWRITE(tradeOwner);
         }
     }
     
@@ -322,7 +346,7 @@ inline void SerializeTransaction(const TxType& tx, Stream& s) {
         }
     }
     s << tx.nLockTime;
-}
+};
 
 
 /** The basic transaction that is broadcasted on the network and contained in
@@ -386,6 +410,7 @@ public:
 
     // Compute a hash that includes both transaction and witness data
     uint256 GetWitnessHash() const;
+
 
     // Return sum of txouts.
     CAmount GetValueOut(CAssetType assetType = NATIVE_ASSET) const;

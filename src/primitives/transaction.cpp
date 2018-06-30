@@ -58,7 +58,8 @@ std::string CTxOut::ToString() const
 CTransactionAttributes::CTransactionAttributes(): type(CTransactionTypes::VALUE){}
 CTransactionAttributes::CTransactionAttributes(CTransactionType txType): type(txType){}
 CTransactionAttributes::CTransactionAttributes(CTransactionType txType, CAssetType assetType, CAmount assetTotalSupply, std::string assetSymbol): type(txType), assetType(assetType), assetSymbol(assetSymbol), assetTotalSupply(assetTotalSupply){}
-    
+CTransactionAttributes::CTransactionAttributes(CTransactionType txType, CTradingPair tradePair, CTradingSide tradeSide, CTradingPrice tradePrice, CAmount tradeAmount, CTradingOwner tradeOwner): type(txType), tradePair(tradePair), tradeSide(tradeSide), tradePrice(tradePrice), tradeAmount(tradeAmount), tradeOwner(tradeOwner){}
+
 CMutableTransaction::CMutableTransaction() : nVersion(CTransaction::CURRENT_VERSION), nLockTime(0), type(CTransactionTypes::VALUE), attr(CTransactionAttributes()) {}
 CMutableTransaction::CMutableTransaction(const CTransaction& tx) : vin(tx.vin), vout(tx.vout), nVersion(tx.nVersion), nLockTime(tx.nLockTime), type(tx.type), attr(tx.attr) {}
 
@@ -84,7 +85,6 @@ uint256 CTransaction::GetWitnessHash() const
 CTransaction::CTransaction() : vin(), vout(), nVersion(CTransaction::CURRENT_VERSION), nLockTime(0), type(CTransactionTypes::VALUE), attr(CTransactionAttributes()), hash() {}
 CTransaction::CTransaction(const CMutableTransaction &tx) : vin(tx.vin), vout(tx.vout), nVersion(tx.nVersion), nLockTime(tx.nLockTime), type(tx.type), attr(tx.attr), hash(ComputeHash()) {}
 CTransaction::CTransaction(CMutableTransaction &&tx) : vin(std::move(tx.vin)), vout(std::move(tx.vout)), nVersion(tx.nVersion), nLockTime(tx.nLockTime), type(tx.type), attr(std::move(tx.attr)), hash(ComputeHash()) {}
-
 
 CAmount CTransaction::GetValueOut(CAssetType assetType) const
 {

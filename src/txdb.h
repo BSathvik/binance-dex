@@ -130,6 +130,7 @@ public:
     bool WriteCandidatesAddr(const std::string addr, std::vector<std::string> voters);
     bool ReadCandidatesAddr(const std::string addr, std::vector<std::string> &voters);
     bool IsEnrolled(const std::string addr);
+    bool IsAssetFrozen(const std::string assetType);
     bool WriteAddrBalance(const std::string addr, int nAmount);
     bool ReadAddrBalance(const std::string addr, int &nAmount);
     bool WriteAssetFrozen(const std::string assetType, bool isFrozen);
