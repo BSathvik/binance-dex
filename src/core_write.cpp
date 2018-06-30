@@ -166,7 +166,8 @@ void TxToUniv(const CTransaction& tx, const uint256& hashBlock, UniValue& entry,
         attr.pushKV("assetTotalSupply", tx.attr.assetTotalSupply);
         attr.pushKV("assetSymbol", tx.attr.assetSymbol);
     } else if(tx.type == CTransactionTypes::ORDER) {
-        attr.pushKV("tradePair", tx.attr.tradePair);
+        attr.pushKV("tradePair1", std::get<0>(tx.attr.tradePair));
+        attr.pushKV("tradePair2", std::get<1>(tx.attr.tradePair));
         attr.pushKV("tradeSide", tx.attr.tradeSide);
         attr.pushKV("tradePrice", tx.attr.tradePrice);
         attr.pushKV("tradeAmount", tx.attr.tradeAmount);

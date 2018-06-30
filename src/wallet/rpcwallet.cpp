@@ -938,11 +938,12 @@ UniValue placeorder(const JSONRPCRequest& request)
             "\nSend an amount to a given address.\n"
             + HelpRequiringPassphrase(pwallet) +
             "\nArguments:\n"
-            "1. \"trade_pair\"         (string, required) The trading pair.\n"
-            "2. \"trade_side\"         (string, required) buy or ask.\n"
-            "3. \"price\"              (string, required) price to exchange trading pair.\n"
-            "4. \"amount\"             (numeric or string, required) The amount in " + CURRENCY_UNIT + " to send. eg 0.1\n"
-            "5. \"address\"            (string, required) The bitcoin address to send from.\n"
+            "1. \"trade_pair_1\"         (string, required) The first currency you are trading in, e.g. COIN1 in COIN1/COIN2\n"
+            "2. \"trade_pair_2\"         (string, required) The second currency you are trading in, e.g. COIN2 in COIN1/COIN2\n"
+            "3. \"trade_side\"         (string, required) buy or ask.\n"
+            "4. \"price\"              (string, required) price to exchange trading pair.\n"
+            "5. \"amount\"             (numeric or string, required) The amount in " + CURRENCY_UNIT + " to send. eg 0.1\n"
+            "6. \"address\"            (string, required) The bitcoin address to send from.\n"
                             
             "\nResult:\n"
             "\"txid\"                  (string) The transaction id.\n"
@@ -964,21 +965,21 @@ UniValue placeorder(const JSONRPCRequest& request)
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid address");
     }
     
-    CTradingPair trading_pair = request.params[0].get_str();
-    if (trading_pair.empty())
+    CTradingPair trading_pair = std::make_pair(request.params[0].get_str(), request.params[1].get_str());
+    if (request.params[0].empty() || request.params[1].empty())
         throw JSONRPCError(RPC_TYPE_ERROR, "Invalid trading pair");
         
-    CTradingPair trading_side = request.params[1].get_str();
+    CTradingSide trading_side = request.params[2].get_str();
     if (trading_side.empty())
         throw JSONRPCError(RPC_TYPE_ERROR, "Invalid trading side");
         
     // Price
-    CTradingPrice price = AmountFromValue(request.params[2]);
+    CTradingPrice price = AmountFromValue(request.params[3]);
     if (price <= 0)
         throw JSONRPCError(RPC_TYPE_ERROR, "Invalid price");
 
     // Amount
-    CAmount amount = AmountFromValue(request.params[3]);
+    CAmount amount = AmountFromValue(request.params[4]);
     if (amount <= 0)
         throw JSONRPCError(RPC_TYPE_ERROR, "Invalid amount");
 

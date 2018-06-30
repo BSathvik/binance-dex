@@ -18,7 +18,7 @@ typedef uint32_t CTransactionType;
 typedef std::string CAssetType;
 typedef std::string CAssetSymbol;
 
-typedef std::string CTradingPair;
+typedef std::pair<CAssetType, CAssetType> CTradingPair;
 typedef std::string CTradingSide;
 typedef int64_t CTradingPrice;
 typedef std::string CTradingOwner;
