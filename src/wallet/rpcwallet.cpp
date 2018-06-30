@@ -514,7 +514,13 @@ static CTransactionRef PlaceOrder(CWallet * const pwallet, const CTxDestination 
     std::string strError;
     std::vector<CRecipient> vecSend;
     int nChangePosRet = -1;
-    CRecipient recipient = {scriptPubKey, amount, fSubtractFeeFromAmount, NATIVE_ASSET};
+    CRecipient recipient = {scriptPubKey, amount, fSubtractFeeFromAmount, std::get<1>(trading_pair)};;
+    
+    if (trading_side == BUY)
+        recipient.assetType = std::get<1>(trading_pair);
+    else if (trading_side == SELL)
+        recipient.assetType = std::get<0>(trading_pair);
+        
     vecSend.push_back(recipient);
     CTransactionRef tx;
     
@@ -932,7 +938,7 @@ UniValue placeorder(const JSONRPCRequest& request)
         return NullUniValue;
     }
 
-    if (request.fHelp || request.params.size() < 5 || request.params.size() > 5)
+    if (request.fHelp || request.params.size() < 6 || request.params.size() > 6)
         throw std::runtime_error(
             "placeorder \"trade_pair\",\"trade_side\",\"price\",\"amount\"\n"
             "\nSend an amount to a given address.\n"
@@ -940,7 +946,7 @@ UniValue placeorder(const JSONRPCRequest& request)
             "\nArguments:\n"
             "1. \"trade_pair_1\"         (string, required) The first currency you are trading in, e.g. COIN1 in COIN1/COIN2\n"
             "2. \"trade_pair_2\"         (string, required) The second currency you are trading in, e.g. COIN2 in COIN1/COIN2\n"
-            "3. \"trade_side\"         (string, required) buy or ask.\n"
+            "3. \"trade_side\"         (string, required) \"BUY\" or \"SELL\".\n"
             "4. \"price\"              (string, required) price to exchange trading pair.\n"
             "5. \"amount\"             (numeric or string, required) The amount in " + CURRENCY_UNIT + " to send. eg 0.1\n"
             "6. \"address\"            (string, required) The bitcoin address to send from.\n"
@@ -960,13 +966,13 @@ UniValue placeorder(const JSONRPCRequest& request)
 
     LOCK2(cs_main, pwallet->cs_wallet);
     
-    CTxDestination dest = DecodeDestination(request.params[4].get_str());
+    CTxDestination dest = DecodeDestination(request.params[5].get_str());
     if (!IsValidDestination(dest)) {
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid address");
     }
     
     CTradingPair trading_pair = std::make_pair(request.params[0].get_str(), request.params[1].get_str());
-    if (request.params[0].empty() || request.params[1].empty())
+    if (request.params[0].get_str().empty() || request.params[1].get_str().empty())
         throw JSONRPCError(RPC_TYPE_ERROR, "Invalid trading pair");
         
     CTradingSide trading_side = request.params[2].get_str();
