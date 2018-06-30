@@ -9,6 +9,7 @@
 #include <validation.h>
 #include <util.h>
 #include <rpc/server.h>
+#include <core_io.h>
 
 static std::multimap<std::string, CZMQAbstractPublishNotifier*> mapPublishNotifiers;
 
@@ -160,10 +161,15 @@ bool CZMQPublishHashTransactionNotifier::NotifyTransaction(const CTransaction &t
 {
     uint256 hash = transaction.GetHash();
     LogPrint(BCLog::ZMQ, "zmq: Publish hashtx %s\n", hash.GetHex());
-    char data[32];
-    for (unsigned int i = 0; i < 32; i++)
-        data[31 - i] = hash.begin()[i];
-    return SendMessage(MSG_HASHTX, data, 32);
+
+    std::string sendStr;
+
+    // In the zmq python, for native asset this returns "435472616e73616374696f6e4174747269627574657328747970653d3129"
+    // Which when gone from hex to ascii, returns "CTransactionAttributes(type=1)"
+    // aka get them tostring methods and we can send messages
+    sendStr.append(transaction.attr.assetType);
+
+    return SendMessage(MSG_HASHTX, sendStr.c_str(), sendStr.length());
 }
 
 bool CZMQPublishRawBlockNotifier::NotifyBlock(const CBlockIndex *pindex)
